@@ -1,0 +1,57 @@
+<!-- icare-chatbot.component.html -->
+<div class="chatbot-container">
+  <!-- Header -->
+  <div class="chatbot-header">
+    <div class="header-content">
+      <div class="icon-wrapper">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+      </div>
+      <div class="header-text">
+        <h1>iCare Life Assistant</h1>
+        <p>Your Caregiving Journey Starts Here</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Messages Container -->
+  <div class="messages-container" #scrollContainer>
+    <div *ngFor="let message of messages" class="message-wrapper" [ngClass]="{'user-message': message.type === 'user'}">
+      <div class="message-bubble" [ngClass]="{'user-bubble': message.type === 'user', 'bot-bubble': message.type === 'bot'}">
+        <div class="message-text" [innerHTML]="formatMessage(message.text)"></div>
+      </div>
+      
+      <!-- Options -->
+      <div *ngIf="message.options" class="options-container">
+        <button *ngFor="let option of message.options" 
+                class="option-button" 
+                (click)="handleOptionClick(option)">
+          <span class="option-icon">{{ getOptionIcon(option) }}</span>
+          <span>{{ getOptionLabel(option) }}</span>
+        </button>
+      </div>
+      
+      <div class="timestamp">{{ message.timestamp }}</div>
+    </div>
+  </div>
+
+  <!-- Input Container -->
+  <div class="input-container">
+    <div class="input-wrapper">
+      <input type="text" 
+             [(ngModel)]="userInput" 
+             (keypress)="onKeyPress($event)"
+             placeholder="Type your message..." 
+             class="message-input">
+      <button (click)="onSubmit()" 
+              [disabled]="!userInput.trim()" 
+              class="send-button">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+      </button>
+    </div>
+  </div>
+</div>
