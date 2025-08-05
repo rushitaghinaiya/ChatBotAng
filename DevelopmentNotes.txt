@@ -1,0 +1,40 @@
+Development Notes:
+
+Always add a .gitignore file before your first commit to prevent tracking unnecessary or sensitive files.
+
+
+Never commit the following directories:
+
+node_modules/ – Contains installed dependencies and can be recreated with npm install.
+
+.angular/ – Contains Angular build caches and temporary files.
+
+dist/ – Contains build output.
+
+
+Never commit environment files that contain sensitive keys, such as:
+
+environment.ts
+
+environment.prod.ts
+
+Any .env files
+
+For example, do not commit files that contain secrets like:
+
+
+export const environment = {
+  production: false,
+  openAiKey: 'YOUR_SECRET_KEY'
+};
+Instead:
+
+Store sensitive keys securely (e.g., environment variables or a secure vault).
+
+Use .env files and add them to .gitignore:
+
+
+# Ignore environment files
+*.env
+src/environments/*.ts
+Share keys only through secure channels (never in source control).

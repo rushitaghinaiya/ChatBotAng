@@ -1,11 +1,13 @@
 // icare-chatbot.component.ts
-import { Component, OnInit, ViewChild, ElementRef, AfterViewChecked ,HostListener} from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, AfterViewChecked, HostListener } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { HttpClientModule } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
-import { OpenAIService } from '../open-ai.service';
+import { OpenAIService } from '../Services/open-ai.service';
 import { ChangeDetectorRef, NgZone } from '@angular/core';
+import { environment } from '../constants/environment';
+import { DeviceDetectorService } from 'ngx-device-detector';
 
 // Speech Recognition interface declarations
 declare var webkitSpeechRecognition: any;
@@ -25,7 +27,9 @@ interface Message {
   text: string;
   options?: Option[];
   timestamp: string;
-  senderName:string;
+  senderName: string;
+  topic: string;
+  responseTime?: number;
 }
 
 interface Option {
@@ -36,9 +40,17 @@ interface Option {
 
 interface UserData {
   name: string;
-  contact: string;
+  mobile: string;
   userType: string;
   language: string;
+}
+
+interface BotSession {
+  userId: number;
+  startTime: string; // ISO format (e.g., "2025-07-22T10:00:00Z")
+  endTime: string;
+  createdAt?: string;
+  totalTimeSpent: number; // in seconds
 }
 
 @Component({
@@ -50,18 +62,26 @@ interface UserData {
 export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
 
+  userId: number = 0;
   messages: Message[] = [];
   userInput: string = '';
   currentFlow: string = 'welcome';
   userData: UserData = {
     name: '',
-    contact: '',
+    mobile: '',
     userType: '',
     language: ''
   };
+  botSession: BotSession = {
+    userId: 0,
+    startTime: '',
+    endTime: '',
+    createdAt: '',
+    totalTimeSpent: 0
+  }
   awaitingInput: string | null = null;
   previousFlow: string[] = [];
-
+  isLoggedIn: boolean = false;
   // Voice-related properties
   muted: boolean = false;
   recognition: any;
@@ -70,26 +90,29 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   speechSynthesis: any;
   voiceEnabled: boolean = true;
   browserSupportsVoice: boolean = false;
-   private startTime: number=0;
-  public totalTimeSpent: number = 0;
+  topic: string = '';
+  baseUrl: string = environment.API_BASE_URL;
+  userIp: string = '';
 
-  constructor(private http: HttpClient, private openAIService: OpenAIService, private cdr: ChangeDetectorRef, private ngZone: NgZone) {
-   
-    // Initialize speech synthesis
+
+  constructor(private http: HttpClient, private deviceService: DeviceDetectorService, private openAIService: OpenAIService, private cdr: ChangeDetectorRef, private ngZone: NgZone) {
+
     this.speechSynthesis = window.speechSynthesis;
-
     // Check browser support for speech recognition
     const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognitionAPI) {
       this.browserSupportsVoice = true;
       this.initializeSpeechRecognition(SpeechRecognitionAPI);
     }
+
   }
 
   ngOnInit() {
-    this.startTime = Date.now(); // Record start time
-     this.addBotMessage(
-      "Welcome to iCare Life! 🌟\n\n" +
+    const deviceInfo = this.deviceService.getDeviceInfo();
+    console.log('Device Info:', deviceInfo);
+    this.botSession.startTime = new Date().toISOString();// Record start time
+    this.addBotMessage(
+      "Welcome to iCare Life!\n\n" +
       "**Empowering YOU with skill-training for a Brighter Future!**\n\n" +
       "I'm your virtual assistant, here to help you explore our integrated platform for caregiver training and certification. " +
       "Let's start by getting to know you better.\n\n" +
@@ -102,25 +125,46 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       // this.speak("Welcome to iCare Life! I'm your virtual assistant. Let's start by getting to know you better. What's your name?");
     }
   }
-
- @HostListener('window:beforeunload', ['$event'])
+  
+  @HostListener('window:beforeunload', ['$event'])
   handleBeforeUnload(event: Event): void {
     this.calculateTimeSpent();
-    debugger;
-    alert(`🕒 User spent ${this.totalTimeSpent} seconds on chatbot`);
-    // Optionally send this.totalTimeSpent to your backend or local storage
   }
 
   ngOnDestroy(): void {
     this.calculateTimeSpent();
-    alert(`🕒 User spent ${this.totalTimeSpent} seconds on chatbot`);
   }
 
-  private calculateTimeSpent(): void {
-    const endTime = Date.now();
-    this.totalTimeSpent = Math.floor((endTime - this.startTime) / 1000);
+  public calculateTimeSpent(): void {
+    const endTime = new Date(); // create Date object
+    this.botSession.endTime = endTime.toISOString(); // send as ISO string
+
+    this.botSession.totalTimeSpent = Math.floor(
+      (endTime.getTime() - new Date(this.botSession.startTime).getTime()) / 1000
+    );
+
+    this.saveUserSession(this.botSession).subscribe({
+      next: (res) => {
+        console.log('User session saved successfully:', res);
+      },
+      error: (err) => {
+        console.error('Error saving user session:', err);
+      }
+    });
   }
 
+  saveUserSession(session: BotSession) {
+
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      const user = JSON.parse(storedUser);
+      session.userId = user.id;
+      this.userId = user.id;
+    }
+
+    const url = `${this.baseUrl}User/SaveUserSession`;
+    return this.http.post(url, session);
+  }
   ngAfterViewChecked() {
     // this.scrollToBottom();
   }
@@ -143,15 +187,7 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
     } catch (err) { }
   }
 
-  // addBotMessage(text: string, options: Option[] | null = null): void {
-  //   const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  //   this.messages.push({
-  //     type: 'bot',
-  //     text,
-  //     options: options || undefined,
-  //     timestamp
-  //   });
-  // }
+
 
   addUserMessage(text: string): void {
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -159,36 +195,89 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       type: 'user',
       text,
       timestamp,
-      senderName:this.userData.name
+      senderName: this.userData.name,
+      topic: this.topic
     });
     this.scrollToBottom();
   }
 
-  handleUserInput(input: string): void {
-    this.addUserMessage(input);
+ handleUserInput(input: string): void {
+  this.addUserMessage(input.trim());
 
-    if (this.awaitingInput === 'name') {
-      this.userData.name = input;
-      this.awaitingInput = 'contact';
-      this.addBotMessage(`Nice to meet you, ${input}! 😊\n\nCould you please share your email or phone number so we can keep you updated about our programs?`);
-    } else if (this.awaitingInput === 'contact') {
-      this.userData.contact = input;
-      this.awaitingInput = null;
-      this.currentFlow = 'userType';
-      this.showUserTypeSelection();
-    } else if (this.awaitingInput === 'language') {
-      this.userData.language = input;
-      this.showCourseDetails(input);
-    } else if (this.currentFlow === 'health') {
-      this.handleHealthQuery(input);
-    } else {
-      this.handleGeneralInput(input);
+  if (this.awaitingInput === 'name') {
+    // Name validation: only letters and at least 2 characters
+    const nameRegex = /^[a-zA-Z ]{2,}$/;
+    if (!nameRegex.test(input)) {
+      this.addBotMessage("Please enter a valid name (only alphabets, minimum 2 characters).");
+      return;
+    }
+
+    this.userData.name = input;
+    this.awaitingInput = 'mobile';
+    this.addBotMessage(`Nice to meet you, ${input}! 😊\n\nCould you please share your phone number so we can keep you updated about our programs?`);
+
+  } else if (this.awaitingInput === 'mobile') {
+    // Mobile validation: 10 digits only
+    const mobileRegex = /^[0-9]{10}$/;
+    if (!mobileRegex.test(input)) {
+      this.addBotMessage("Please enter a valid 10-digit mobile number (numbers only).");
+      return;
+    }
+
+    this.userData.mobile = input;
+    this.awaitingInput = null;
+    this.currentFlow = 'userType';
+    this.showUserTypeSelection();
+
+  } else if (this.awaitingInput === 'language') {
+    this.userData.language = input;
+    this.showCourseDetails(input);
+
+  } else if (this.currentFlow === 'health') {
+    this.handleHealthQuery(input);
+
+  } else {
+    this.handleGeneralInput(input);
+  }
+
+  // Save only if both fields are filled and valid
+  if (this.userData.name && this.userData.mobile) {
+    this.saveUserInfo();
+  }
+}
+
+  saveUserInfo(): void {
+
+    if (this.userData.name && this.userData.mobile && this.isLoggedIn == false) {
+      this.http.post<any>(`${this.baseUrl}UserSignUp/SignUp`, this.userData)
+        .subscribe({
+          next: (res) => {
+            console.log('User saved:', res);
+
+            if (res.success && res.data) {
+              this.isLoggedIn = true;
+              const { user, accessToken, refreshToken, tokenExpiration, tokenType } = res.data;
+
+              // ✅ Save required data to localStorage
+              localStorage.setItem('user', JSON.stringify(user));
+              localStorage.setItem('accessToken', accessToken);
+              localStorage.setItem('refreshToken', refreshToken);
+              localStorage.setItem('tokenExpiration', tokenExpiration);
+              localStorage.setItem('tokenType', tokenType);
+
+              this.userId = user.id;
+
+              console.log('User and tokens stored in localStorage');
+            }
+          },
+          error: (err) => console.error('Save failed:', err)
+        });
     }
   }
 
   handleOptionClick(option: Option): void {
     this.addUserMessage(option.label);
-
+    this.topic = option.label;
     if (option.value === 'student' || option.value === 'partner' || option.value === 'guest') {
       this.userData.userType = option.value;
       this.previousFlow.push(this.currentFlow);
@@ -237,7 +326,7 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
 
   showUserTypeSelection(): void {
     this.addBotMessage(
-      `Thank you! I've saved your contact information.\n\n` +
+      `Thank you! I've saved your mobile information.\n\n` +
       `To provide you with the best information, please tell me - are you a:`,
       [
         { label: '🎓 Student', value: 'student', icon: '🎓' },
@@ -429,7 +518,7 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       `✅ Comprehensive support system\n` +
       `✅ Global brand recognition\n` +
       `✅ Positive social impact\n\n` +
-      `📧 Contact us at partners@icare.life for detailed information`,
+      `📧 mobile us at partners@icare.life for detailed information`,
       [
         { label: '📊 Request Partnership Details', value: 'partnerDetails' },
         { label: '🏠 Back to Main Menu', value: 'mainMenu' }
@@ -532,66 +621,7 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
     );
   }
 
-  // async handleHealthQuery(query: string): Promise<void> {
-  //   // Show typing indicator
-  //   this.addBotMessage('🤔 Let me look that up for you...');
 
-  //   try {
-  //     // Simulate API delay
-  //     const healthAdvice = await this.getHealthAdviceFromAI(query);
-
-  //     // Remove typing indicator and add actual response
-  //     this.messages.pop();
-
-  //     this.addBotMessage(
-  //       `${healthAdvice}\n\n` +
-  //       `⚠️ **Important Disclaimer:** This information is for educational purposes only and should not replace professional medical advice. ` +
-  //       `Always consult with qualified healthcare professionals for personalized medical guidance.`,
-  //       [
-  //         { label: '❤️ Ask Another Health Question', value: 'health' },
-  //         { label: '⬅️ Back to Previous Menu', value: 'back' },
-  //         { label: '🏠 Back to Main Menu', value: 'mainMenu' }
-  //       ]
-  //     );
-  //   } catch (error) {
-  //     this.messages.pop();
-  //     this.addBotMessage(
-  //       `I apologize, but I'm having trouble processing your health question right now. ` +
-  //       `Please try again or consult with a healthcare professional directly.`,
-  //       [
-  //         { label: '🔄 Try Again', value: 'health' },
-  //         { label: '⬅️ Back to Previous Menu', value: 'back' },
-  //         { label: '🏠 Back to Main Menu', value: 'mainMenu' }
-  //       ]
-  //     );
-  //   }
-  // }
-
-  async getHealthAdviceFromAI(query: string): Promise<string> {
-    // In production, replace this with actual OpenAI API call:
-    // return this.http.post('https://api.openai.com/v1/chat/completions', {...}).toPromise();
-
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // Mock responses
-    const mockResponses: any = {
-      'headache': `Based on your query about headaches, here's some helpful information:\n\n**Common Causes:**\n• Stress and tension\n• Dehydration\n• Poor posture\n• Eye strain\n• Lack of sleep\n\n**Relief Methods:**\n• Stay hydrated with water\n• Rest in a quiet, dark room\n• Apply cold compress to forehead\n• Practice relaxation techniques\n• Gentle neck stretches\n\n**When to Seek Medical Help:**\n• Sudden, severe headache\n• Headache with fever, stiff neck, or confusion\n• Persistent headaches that worsen\n• Headaches after a head injury`,
-
-      'fever': `Here's information about fever management:\n\n**What is Fever:**\nA body temperature above 98.6°F (37°C) is considered elevated. Fever is often a sign that your body is fighting an infection.\n\n**Management Tips:**\n• Rest and stay hydrated\n• Take temperature regularly\n• Wear light clothing\n• Use fever-reducing medications as directed\n• Take lukewarm baths\n\n**Seek Medical Care If:**\n• Temperature exceeds 103°F (39.4°C)\n• Fever lasts more than 3 days\n• Accompanied by severe symptoms\n• In infants under 3 months`,
-
-      'default': `I understand you're asking about a health topic. While I can provide general health information, it's important to remember that:\n\n• This information is educational only\n• Individual health needs vary\n• Professional medical advice is essential for diagnosis and treatment\n\n**General Health Tips:**\n• Maintain a balanced diet\n• Exercise regularly\n• Get adequate sleep (7-9 hours)\n• Stay hydrated\n• Manage stress\n• Regular health check-ups\n\nFor specific concerns, please consult with a qualified healthcare provider who can assess your individual situation.`
-    };
-
-    const lowerQuery = query.toLowerCase();
-    for (const [keyword, response] of Object.entries(mockResponses)) {
-      if (lowerQuery.includes(keyword)) {
-        return response as string;
-      }
-    }
-
-    return mockResponses.default;
-  }
 
   handleBackNavigation(): void {
     if (this.previousFlow.length > 0) {
@@ -760,14 +790,12 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       utterance.onstart = () => {
         this.ngZone.run(() => {
           this.isSpeaking = true;
-          console.log('start', this.isSpeaking);
         });
       };
 
       utterance.onend = () => {
         this.ngZone.run(() => {
           this.isSpeaking = false;
-          console.log('stop', this.isSpeaking);
         });
       };
 
@@ -780,7 +808,7 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
 
       this.speechSynthesis.speak(utterance);
 
-    }, 150); // 👈 delay 150ms before speaking
+    }, 250); // 👈 delay 150ms before speaking
 
   }
 
@@ -795,23 +823,28 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   }
 
   // Override addBotMessage to include speech
-  addBotMessage(text: string, options: Option[] | null = null): void {
+  addBotMessage(text: string, options: Option[] | null = null, resTime: number | null = null): void {
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    console.log(this.topic);
     this.messages.push({
       type: 'bot',
       text,
       options: options || undefined,
       timestamp,
-      senderName:this.userData.name
+      senderName: this.userData.name,
+      topic: this.topic,
+      responseTime: resTime == null ? 0 : resTime
     });
-    debugger;
+
+    if (this.messages[this.messages.length - 1].text != 'dot') {
+      this.saveQueryHistory();
+    }
     // Delay to allow DOM update
     setTimeout(() => {
       this.scrollToLatestMessage();
     }, 0);
     //Speak the message if voice is enabled
     if (this.voiceEnabled && this.browserSupportsVoice && !options) {
-      debugger;
       this.speak(text);
     }
   }
@@ -822,12 +855,14 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
     this.addBotMessage('dot');
 
     try {
+      const start = Date.now();
       // Simulate API call
       const healthAdvice = await this.openAIService.getHealthAdviceFromAI(query);
-
+      const end = Date.now();
+      const responseTime = parseFloat(((end - start) / 1000).toFixed(2));
       // Remove typing indicator
       this.messages.pop();
-
+      console.log(responseTime);
       const response = `${healthAdvice}\n\n` +
         `⚠️ **Important Disclaimer:** This information is for educational purposes only and should not replace professional medical advice. ` +
         `Always consult with qualified healthcare professionals for personalized medical guidance.`;
@@ -838,7 +873,7 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
           { label: '❤️ Ask Another Health Question', value: 'health' },
           { label: '⬅️ Back to Previous Menu', value: 'back' },
           { label: '🏠 Back to Main Menu', value: 'mainMenu' }
-        ]
+        ], responseTime
       );
 
       // Speak the health advice
@@ -856,6 +891,39 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
           { label: '🏠 Back to Main Menu', value: 'mainMenu' }
         ]
       );
+    }
+  }
+removeEmojis(text: string): string {
+return text
+    // Remove emojis and invisible emoji-related characters
+    .replace(
+      /([\u2700-\u27BF]|[\uE000-\uF8FF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|\uFE0F|\u200D)/g,
+      ''
+    )
+    // Replace all types of spaces and collapse multiple into one
+    .replace(/[\s\u00A0]+/g, ' ')
+    // Trim leading/trailing spaces
+    .trim();
+}
+  saveQueryHistory() {
+    if (this.messages.length >= 6) {
+
+      const queryText = this.messages[this.messages.length - 2];
+      const responseText = this.messages[this.messages.length - 1] || '';
+      
+      const queryDto = {
+        userId: this.userId,
+        queryText: queryText.text,
+        responseText: responseText.text,
+        responseTime: responseText.responseTime,       // If available
+        topic: this.removeEmojis(responseText.topic),
+        status: responseText.text ? 'Answered' : 'Unanswered'
+      };
+      this.http.post(`${this.baseUrl}user/SaveQueryHistory`, queryDto).subscribe({
+        next: res => console.log('Saved:', res),
+        error: err => console.error('Save failed:', err)
+      });
+
     }
   }
 }

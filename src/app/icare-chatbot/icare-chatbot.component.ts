@@ -4,7 +4,7 @@ import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common'; 
 import { FormsModule } from '@angular/forms'; 
 import { HttpClientModule } from '@angular/common/http';
-import { OpenAIService } from '../open-ai.service';
+import { OpenAIService } from '../Services/open-ai.service';
 
 interface Message {
   type: 'bot' | 'user';
