@@ -1,27 +1,45 @@
-import { inject } from '@angular/core';
+import { inject, PLATFORM_ID } from '@angular/core';
 import {
   HttpRequest,
   HttpHandlerFn,
   HttpEvent,
   HttpInterceptorFn
 } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, catchError, throwError } from 'rxjs';
+import { isPlatformBrowser } from '@angular/common';
+import { Router } from '@angular/router';
 
-export const tokenInterceptor: HttpInterceptorFn = (req: HttpRequest<any>, next: HttpHandlerFn): Observable<HttpEvent<any>> => {
+export const tokenInterceptor: HttpInterceptorFn = (
+  req: HttpRequest<any>,
+  next: HttpHandlerFn
+): Observable<HttpEvent<any>> => {
+  const router = inject(Router);
+
   const token = localStorage.getItem("accessToken");
 
-  // Add your own domain or internal API base URL
-  const isInternalRequest = req.url.startsWith('https://api.openai.com');
+  const isInternalRequest = !req.url.startsWith('https://api.openai.com');
+  const isPerformRequest = req.url.includes('performid');
 
-  if (token && !isInternalRequest) {
-    const newReq = req.clone({
+  let newReq = req;
+
+  // ✅ Add token only if it's an internal request and doesn't include 'performid'
+  if (token && isInternalRequest && !isPerformRequest) {
+    newReq = req.clone({
       setHeaders: {
         Authorization: `Bearer ${token}`
       }
     });
-    return next(newReq);
   }
 
-  // Don't add token for OpenAI or any external API
-  return next(req);
+  return next(newReq).pipe(
+    catchError(err => {
+      if (err.status === 401) {
+        console.warn('⛔ Token expired or unauthorized. Redirecting to login...');
+        localStorage.removeItem('accessToken'); // Optional cleanup
+        router.navigate(['/chatbot']); 
+      }
+
+      return throwError(() => err);
+    })
+  );
 };
