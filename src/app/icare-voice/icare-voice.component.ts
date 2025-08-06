@@ -55,7 +55,7 @@ interface BotSession {
 
 @Component({
   selector: 'app-icare-voice',
-  imports: [CommonModule, FormsModule, HttpClientModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './icare-voice.component.html',
   styleUrls: ['./icare-voice.component.css']
 })
