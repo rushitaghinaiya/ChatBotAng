@@ -836,7 +836,7 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       responseTime: resTime == null ? 0 : resTime
     });
 
-    if (this.messages[this.messages.length - 1].text != 'dot') {
+    if (this.messages[this.messages.length - 1].text != 'thinking') {
       this.saveQueryHistory();
     }
     // Delay to allow DOM update
@@ -852,7 +852,7 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   // Override handleHealthQuery to speak the response
   async handleHealthQuery(query: string): Promise<void> {
     // Show typing indicator
-    this.addBotMessage('dot');
+    this.addBotMessage('thinking');
 
     try {
       const start = Date.now();

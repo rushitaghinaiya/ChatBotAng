@@ -54,12 +54,12 @@
     <div class="message-bubble" 
          [ngClass]="{'user-bubble': message.type === 'user', 'bot-bubble': message.type === 'bot'}">
 
-      <div *ngIf="message.text !== 'dot'" class="message-text" 
+      <div *ngIf="message.text !== 'thinking'" class="message-text" 
            [id]="last ? 'lastMessage' : null" 
            [innerHTML]="formatMessage(message.text)">
       </div>
 
-      <div *ngIf="message.text === 'dot'" class="typing-dots">
+      <div *ngIf="message.text === 'thinking'" class="typing-dots">
         <span>.</span><span>.</span><span>.</span>
       </div>
     </div>
