@@ -16,7 +16,7 @@ export const tokenInterceptor: HttpInterceptorFn = (
   const router = inject(Router);
 
   const token = localStorage.getItem("accessToken");
-
+debugger;
   const isInternalRequest = !req.url.startsWith('https://api.openai.com');
   const isPerformRequest = req.url.includes('performid');
 

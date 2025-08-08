@@ -34,7 +34,16 @@ interface Message {
 
 interface Option {
   label: string;
+  text: string;
   value: string;
+  category?: string;
+  icon?: string;
+}
+
+interface OptionList {
+  Text: string;
+  value: string;
+  category: string;
   icon?: string;
 }
 
@@ -64,6 +73,7 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
 
   userId: number = 0;
   messages: Message[] = [];
+  options: Option[] = [];
   userInput: string = '';
   currentFlow: string = 'welcome';
   userData: UserData = {
@@ -124,8 +134,9 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
     if (this.voiceEnabled && this.browserSupportsVoice) {
       // this.speak("Welcome to iCare Life! I'm your virtual assistant. Let's start by getting to know you better. What's your name?");
     }
+
   }
-  
+
   @HostListener('window:beforeunload', ['$event'])
   handleBeforeUnload(event: Event): void {
     this.calculateTimeSpent();
@@ -201,50 +212,51 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
     this.scrollToBottom();
   }
 
- handleUserInput(input: string): void {
-  this.addUserMessage(input.trim());
+  handleUserInput(input: string): void {
+    this.addUserMessage(input.trim());
 
-  if (this.awaitingInput === 'name') {
-    // Name validation: only letters and at least 2 characters
-    const nameRegex = /^[a-zA-Z ]{2,}$/;
-    if (!nameRegex.test(input)) {
-      this.addBotMessage("Please enter a valid name (only alphabets, minimum 2 characters).");
-      return;
+    if (this.awaitingInput === 'name') {
+      // Name validation: only letters and at least 2 characters
+      const nameRegex = /^[a-zA-Z ]{2,}$/;
+      if (!nameRegex.test(input)) {
+        this.addBotMessage("Please enter a valid name (only alphabets, minimum 2 characters).");
+        return;
+      }
+
+      this.userData.name = input;
+      this.awaitingInput = 'mobile';
+      this.addBotMessage(`Nice to meet you, ${input}! 😊\n\nCould you please share your phone number so we can keep you updated about our programs?`);
+
+    } else if (this.awaitingInput === 'mobile') {
+      // Mobile validation: 10 digits only
+      const mobileRegex = /^[0-9]{10}$/;
+      if (!mobileRegex.test(input)) {
+        this.addBotMessage("Please enter a valid 10-digit mobile number (numbers only).");
+        return;
+      }
+
+      this.userData.mobile = input;
+      this.awaitingInput = null;
+      this.currentFlow = 'userType';
+
+
+
+    } else if (this.awaitingInput === 'language') {
+      this.userData.language = input;
+      this.showCourseDetails(input);
+
+    } else if (this.currentFlow === 'health') {
+      this.handleHealthQuery(input);
+
+    } else {
+      this.handleGeneralInput(input);
     }
 
-    this.userData.name = input;
-    this.awaitingInput = 'mobile';
-    this.addBotMessage(`Nice to meet you, ${input}! 😊\n\nCould you please share your phone number so we can keep you updated about our programs?`);
-
-  } else if (this.awaitingInput === 'mobile') {
-    // Mobile validation: 10 digits only
-    const mobileRegex = /^[0-9]{10}$/;
-    if (!mobileRegex.test(input)) {
-      this.addBotMessage("Please enter a valid 10-digit mobile number (numbers only).");
-      return;
+    // Save only if both fields are filled and valid
+    if (this.userData.name && this.userData.mobile) {
+      this.saveUserInfo();
     }
-
-    this.userData.mobile = input;
-    this.awaitingInput = null;
-    this.currentFlow = 'userType';
-    this.showUserTypeSelection();
-
-  } else if (this.awaitingInput === 'language') {
-    this.userData.language = input;
-    this.showCourseDetails(input);
-
-  } else if (this.currentFlow === 'health') {
-    this.handleHealthQuery(input);
-
-  } else {
-    this.handleGeneralInput(input);
   }
-
-  // Save only if both fields are filled and valid
-  if (this.userData.name && this.userData.mobile) {
-    this.saveUserInfo();
-  }
-}
 
   saveUserInfo(): void {
 
@@ -266,7 +278,7 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
               localStorage.setItem('tokenType', tokenType);
 
               this.userId = user.id;
-
+              this.getOptionList();
               console.log('User and tokens stored in localStorage');
             }
           },
@@ -275,9 +287,46 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
     }
   }
 
+  getOptionList() {
+    this.http.get<any>(`${this.baseUrl}Question/GetQuestionsList`)
+      .subscribe({
+        next: (res) => {
+          this.options = res.data;
+          console.log(this.options);
+          debugger;
+          const list = this.options.filter(option => option.category === 'userType');
+
+          console.log(list);
+          this.showUserTypeSelection();
+        },
+        error: (err) => {
+          console.error('Error fetching users', err);
+        }
+      });
+  }
+  getOptionsByCategories(categories: string[]) {
+  const filtered = this.options.filter(
+    option =>
+      option.category &&
+      categories.map(c => c.toLowerCase()).includes(option.category.toLowerCase())
+  );
+
+  // Correct priority: normal (0) → backToPre (1) → mainMenu (2)
+  return filtered.sort((a, b) => {
+    const priority = (value: string) => {
+      if (value === 'mainMenu') return 2;   // last
+      if (value === 'back') return 1;  // second last
+      return 0; // normal items first
+    };
+
+    return priority(a.value) - priority(b.value);
+  });
+}
+
+
   handleOptionClick(option: Option): void {
-    this.addUserMessage(option.label);
-    this.topic = option.label;
+    this.addUserMessage(option.text);
+    this.topic = option.text;
     if (option.value === 'student' || option.value === 'partner' || option.value === 'guest') {
       this.userData.userType = option.value;
       this.previousFlow.push(this.currentFlow);
@@ -328,11 +377,7 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
     this.addBotMessage(
       `Thank you! I've saved your mobile information.\n\n` +
       `To provide you with the best information, please tell me - are you a:`,
-      [
-        { label: '🎓 Student', value: 'student', icon: '🎓' },
-        { label: '🤝 Partner', value: 'partner', icon: '🤝' },
-        { label: '👋 Guest', value: 'guest', icon: '👋' }
-      ]
+       this.getOptionsByCategories(['userType'])
     );
   }
 
@@ -340,13 +385,7 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
     this.addBotMessage(
       `Welcome, future caregiver! 🌟\n\n` +
       `I'm excited to help you explore our comprehensive training programs. What would you like to know about?`,
-      [
-        { label: '📚 Know More About iCare', value: 'knowMore' },
-        { label: '🎯 View Curriculum & Languages', value: 'curriculum' },
-        { label: '💼 Caregiving Modules', value: 'caregiving' },
-        { label: '💰 Pricing & Trial Options', value: 'pricing' },
-        { label: '🏠 Back to Main Menu', value: 'mainMenu' }
-      ]
+       this.getOptionsByCategories(['student','backToMain'])
     );
   }
 
@@ -366,12 +405,14 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       `• Human-centered care that remains unphased by AI\n` +
       `• International certification opportunities\n` +
       `• Expert mentorship and support`,
-      [
-        { label: '🎯 View Our Courses', value: 'curriculum' },
-        { label: '💰 See Pricing', value: 'pricing' },
-        { label: '⬅️ Back to Previous Menu', value: 'back' },
-        { label: '🏠 Back to Main Menu', value: 'mainMenu' }
-      ]
+         this.getOptionsByCategories(['knowMore','backToMain','backToPre'])
+
+      // [
+      //   // { label: '🎯 View Our Courses', value: 'curriculum' },
+      //   // { label: '💰 See Pricing', value: 'pricing' },
+      //   // { label: '⬅️ Back to Previous Menu', value: 'back' },
+      //   // { label: '🏠 Back to Main Menu', value: 'mainMenu' }
+      // ]
     );
   }
 
@@ -379,13 +420,15 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
     this.addBotMessage(
       `**Choose Your Language Track** 🌐\n\n` +
       `We offer our caregiving curriculum in multiple language families to serve our global community:`,
-      [
-        { label: '🇩🇪 Germanic Languages', value: 'lang_germanic' },
-        { label: '🇫🇷 Romance Languages', value: 'lang_romance' },
-        { label: '🇷🇺 Slavic Languages', value: 'lang_slavic' },
-        { label: '⬅️ Back to Previous Menu', value: 'back' },
-        { label: '🏠 Back to Main Menu', value: 'mainMenu' }
-      ]
+         this.getOptionsByCategories(['curriculum','backToMain','backToPre'])
+
+      // [
+      //   // { label: '🇩🇪 Germanic Languages', value: 'lang_germanic' },
+      //   // { label: '🇫🇷 Romance Languages', value: 'lang_romance' },
+      //   // { label: '🇷🇺 Slavic Languages', value: 'lang_slavic' },
+      //   // { label: '⬅️ Back to Previous Menu', value: 'back' },
+      //   // { label: '🏠 Back to Main Menu', value: 'mainMenu' }
+      // ]
     );
   }
 
@@ -424,12 +467,14 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       `• Practical assessments\n` +
       `• Expert mentorship\n` +
       `• Certification upon completion`,
-      [
-        { label: '💰 View Pricing', value: 'pricing' },
-        { label: '🎯 Other Languages', value: 'curriculum' },
-        { label: '⬅️ Back to Previous Menu', value: 'back' },
-        { label: '🏠 Back to Main Menu', value: 'mainMenu' }
-      ]
+         this.getOptionsByCategories(['language','backToMain','backToPre'])
+
+      // [
+      //   // { label: '💰 View Pricing', value: 'pricing' },
+      //   // { label: '🎯 Other Languages', value: 'curriculum' },
+      //   // { label: '⬅️ Back to Previous Menu', value: 'back' },
+      //   // { label: '🏠 Back to Main Menu', value: 'mainMenu' }
+      // ]
     );
   }
 
@@ -456,12 +501,14 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       `• International standards compliance\n` +
       `• Professional documentation\n` +
       `• Career advancement strategies`,
-      [
-        { label: '💰 See Pricing', value: 'pricing' },
-        { label: '🎯 Choose Language', value: 'curriculum' },
-        { label: '⬅️ Back to Previous Menu', value: 'back' },
-        { label: '🏠 Back to Main Menu', value: 'mainMenu' }
-      ]
+         this.getOptionsByCategories(['caregiving','backToMain','backToPre'])
+
+      // [
+      //   // { label: '💰 See Pricing', value: 'pricing' },
+      //   // { label: '🎯 Choose Language', value: 'curriculum' },
+      //   // { label: '⬅️ Back to Previous Menu', value: 'back' },
+      //   // { label: '🏠 Back to Main Menu', value: 'mainMenu' }
+      // ]
     );
   }
 
@@ -483,12 +530,13 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       `• Experience our learning system\n` +
       `• No commitment required\n\n` +
       `**Payment Methods:** Credit/Debit cards, PayPal, Bank transfer`,
-      [
-        { label: '🚀 Start 3-Day Trial', value: 'trial' },
-        { label: '📚 View Courses', value: 'curriculum' },
-        { label: '⬅️ Back to Previous Menu', value: 'back' },
-        { label: '🏠 Back to Main Menu', value: 'mainMenu' }
-      ]
+       this.getOptionsByCategories(['pricing','backToMain','backToPre'])
+      //[
+        // { label: '🚀 Start 3-Day Trial', value: 'trial' },
+        // { label: '📚 View Courses', value: 'curriculum' },
+        // { label: '⬅️ Back to Previous Menu', value: 'back' },
+        // { label: '🏠 Back to Main Menu', value: 'mainMenu' }
+      //]
     );
   }
 
@@ -519,24 +567,16 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       `✅ Global brand recognition\n` +
       `✅ Positive social impact\n\n` +
       `📧 mobile us at partners@icare.life for detailed information`,
-      [
-        { label: '📊 Request Partnership Details', value: 'partnerDetails' },
-        { label: '🏠 Back to Main Menu', value: 'mainMenu' }
-      ]
+      this.getOptionsByCategories(['partner','backToMain'])
     );
   }
 
   showGuestMenu(): void {
+    const guestOption = this.options.filter(option => option.category === 'guest')
     this.addBotMessage(
       `**Welcome, Guest!** 👋\n\n` +
       `I'm here to help you explore what iCare Life has to offer. What would you like to know about?`,
-      [
-        { label: '⭐ Read Testimonials', value: 'testimonials' },
-        { label: '🎯 Benefits of iCare', value: 'benefits' },
-        { label: '❤️ General Health Queries', value: 'health' },
-        { label: '📚 Explore Courses', value: 'curriculum' },
-        { label: '🏠 Back to Main Menu', value: 'mainMenu' }
-      ]
+       this.getOptionsByCategories(['guest','backToMain'])
     );
   }
 
@@ -555,12 +595,13 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       `*"The Romance language track made complex medical terms easy to understand. I appreciated the human-centered ` +
       `approach that technology can't replace. Now certified, I earn 40% more than before!"*\n\n` +
       `**Join thousands of successful caregivers worldwide!**`,
-      [
-        { label: '🎯 Learn About Benefits', value: 'benefits' },
-        { label: '💰 View Pricing', value: 'pricing' },
-        { label: '⬅️ Back to Previous Menu', value: 'back' },
-        { label: '🏠 Back to Main Menu', value: 'mainMenu' }
-      ]
+       this.getOptionsByCategories(['testimonials','backToPre','backToMain'])
+      // [
+      //   // { label: '🎯 Learn About Benefits', value: 'benefits' },
+      //   // { label: '💰 View Pricing', value: 'pricing' },
+      //   // { label: '⬅️ Back to Previous Menu', value: 'back' },
+      //   // { label: '🏠 Back to Main Menu', value: 'mainMenu' }
+      // ]
     );
   }
 
@@ -592,12 +633,13 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       `• Growing demand in aging societies\n` +
       `• Recession-resistant career\n` +
       `• Meaningful work with purpose`,
-      [
-        { label: '📚 Explore Courses', value: 'curriculum' },
-        { label: '⭐ Read Testimonials', value: 'testimonials' },
-        { label: '⬅️ Back to Previous Menu', value: 'back' },
-        { label: '🏠 Back to Main Menu', value: 'mainMenu' }
-      ]
+      this.getOptionsByCategories(['benefits','backToPre','backToMain'])
+      // [
+      //   // { label: '📚 Explore Courses', value: 'curriculum' },
+      //   // { label: '⭐ Read Testimonials', value: 'testimonials' },
+      //   // { label: '⬅️ Back to Previous Menu', value: 'back' },
+      //   // { label: '🏠 Back to Main Menu', value: 'mainMenu' }
+      // ]
     );
   }
 
@@ -614,10 +656,11 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       `• General medical information\n\n` +
       `Just type your question below and I'll provide helpful information!\n\n` +
       `*⚠️ Important: This information is for educational purposes only. Always consult qualified healthcare professionals for medical advice, diagnosis, or treatment.*`,
-      [
-        { label: '⬅️ Back to Previous Menu', value: 'back' },
-        { label: '🏠 Back to Main Menu', value: 'mainMenu' }
-      ]
+      this.getOptionsByCategories(['backToPre','backToMain'])
+      // [
+        // { label: '⬅️ Back to Previous Menu', value: 'back' },
+        // { label: '🏠 Back to Main Menu', value: 'mainMenu' }
+      //]
     );
   }
 
@@ -656,11 +699,11 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       `I understand you're interested in "${input}". Let me help you find the right information.\n\n` +
       `Please use the menu options below to navigate to specific topics:`,
       [
-        { label: '📚 Course Information', value: 'curriculum' },
-        { label: '💰 Pricing Details', value: 'pricing' },
-        { label: '❤️ Health Queries', value: 'health' },
-        { label: '⬅️ Back to Previous Menu', value: 'back' },
-        { label: '🏠 Back to Main Menu', value: 'mainMenu' }
+        // { label: '📚 Course Information', value: 'curriculum' },
+        // { label: '💰 Pricing Details', value: 'pricing' },
+        // { label: '❤️ Health Queries', value: 'health' },
+        // { label: '⬅️ Back to Previous Menu', value: 'back' },
+        // { label: '🏠 Back to Main Menu', value: 'mainMenu' }
       ]
     );
   }
@@ -686,11 +729,13 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   }
 
   getOptionIcon(option: Option): string {
-    return option.icon || option.label.slice(0, 2);
+    return option.icon || option.text.slice(0, 2);
   }
 
   getOptionLabel(option: Option): string {
-    return option.label.length > 2 ? option.label.slice(2) : option.label;
+    debugger
+    const lbl = option.text.length > 2 ? option.text.slice(2) : option.text;
+    return lbl;
   }
 
   // Voice Recognition Methods
@@ -868,12 +913,13 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
         `Always consult with qualified healthcare professionals for personalized medical guidance.`;
 
       this.addBotMessage(
-        response,
-        [
-          { label: '❤️ Ask Another Health Question', value: 'health' },
-          { label: '⬅️ Back to Previous Menu', value: 'back' },
-          { label: '🏠 Back to Main Menu', value: 'mainMenu' }
-        ], responseTime
+        response,this.getOptionsByCategories(['health','backToPre','backToMain']),
+        //[
+          // { label: '❤️ Ask Another Health Question', value: 'health' },
+          // { label: '⬅️ Back to Previous Menu', value: 'back' },
+          // { label: '🏠 Back to Main Menu', value: 'mainMenu' }
+        //]
+        responseTime
       );
 
       // Speak the health advice
@@ -886,31 +932,31 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
         `I apologize, but I'm having trouble processing your health question right now. ` +
         `Please try again or consult with a healthcare professional directly.`,
         [
-          { label: '🔄 Try Again', value: 'health' },
-          { label: '⬅️ Back to Previous Menu', value: 'back' },
-          { label: '🏠 Back to Main Menu', value: 'mainMenu' }
+          // { label: '🔄 Try Again', value: 'health' },
+          // { label: '⬅️ Back to Previous Menu', value: 'back' },
+          // { label: '🏠 Back to Main Menu', value: 'mainMenu' }
         ]
       );
     }
   }
-removeEmojis(text: string): string {
-return text
-    // Remove emojis and invisible emoji-related characters
-    .replace(
-      /([\u2700-\u27BF]|[\uE000-\uF8FF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|\uFE0F|\u200D)/g,
-      ''
-    )
-    // Replace all types of spaces and collapse multiple into one
-    .replace(/[\s\u00A0]+/g, ' ')
-    // Trim leading/trailing spaces
-    .trim();
-}
+  removeEmojis(text: string): string {
+    return text
+      // Remove emojis and invisible emoji-related characters
+      .replace(
+        /([\u2700-\u27BF]|[\uE000-\uF8FF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|\uFE0F|\u200D)/g,
+        ''
+      )
+      // Replace all types of spaces and collapse multiple into one
+      .replace(/[\s\u00A0]+/g, ' ')
+      // Trim leading/trailing spaces
+      .trim();
+  }
   saveQueryHistory() {
     if (this.messages.length >= 6) {
 
       const queryText = this.messages[this.messages.length - 2];
       const responseText = this.messages[this.messages.length - 1] || '';
-      
+
       const queryDto = {
         userId: this.userId,
         queryText: queryText.text,
