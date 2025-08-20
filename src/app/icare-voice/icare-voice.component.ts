@@ -111,13 +111,13 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
     const deviceInfo = this.deviceService.getDeviceInfo();
     console.log('Device Info:', deviceInfo);
     this.botSession.startTime = new Date().toISOString();// Record start time
-    this.addBotMessage(
-      "Welcome to iCare Life!\n\n" +
-      "**Empowering YOU with skill-training for a Brighter Future!**\n\n" +
-      "I'm your virtual assistant, here to help you explore our integrated platform for caregiver training and certification. " +
-      "Let's start by getting to know you better.\n\n" +
-      "What's your name?"
-    );
+    // this.addBotMessage(
+    //   "Welcome to iCare Life!\n\n" +
+    //   "**Empowering YOU with skill-training for a Brighter Future!**\n\n" +
+    //   "I'm your virtual assistant, here to help you explore our integrated platform for caregiver training and certification. " +
+    //   "Let's start by getting to know you better.\n\n" +
+    //   "What's your name?"
+    // );
     this.awaitingInput = 'name';
 
     // Speak welcome message if voice is enabled
@@ -204,32 +204,33 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
  handleUserInput(input: string): void {
   this.addUserMessage(input.trim());
 
-  if (this.awaitingInput === 'name') {
-    // Name validation: only letters and at least 2 characters
-    const nameRegex = /^[a-zA-Z ]{2,}$/;
-    if (!nameRegex.test(input)) {
-      this.addBotMessage("Please enter a valid name (only alphabets, minimum 2 characters).");
-      return;
-    }
+  // if (this.awaitingInput === 'name') {
+  //   // Name validation: only letters and at least 2 characters
+  //   const nameRegex = /^[a-zA-Z ]{2,}$/;
+  //   if (!nameRegex.test(input)) {
+  //     this.addBotMessage("Please enter a valid name (only alphabets, minimum 2 characters).");
+  //     return;
+  //   }
 
-    this.userData.name = input;
-    this.awaitingInput = 'mobile';
-    this.addBotMessage(`Nice to meet you, ${input}! 😊\n\nCould you please share your phone number so we can keep you updated about our programs?`);
+  //   this.userData.name = input;
+  //   this.awaitingInput = 'mobile';
+  //   this.addBotMessage(`Nice to meet you, ${input}! 😊\n\nCould you please share your phone number so we can keep you updated about our programs?`);
 
-  } else if (this.awaitingInput === 'mobile') {
-    // Mobile validation: 10 digits only
-    const mobileRegex = /^[0-9]{10}$/;
-    if (!mobileRegex.test(input)) {
-      this.addBotMessage("Please enter a valid 10-digit mobile number (numbers only).");
-      return;
-    }
+  // } else if (this.awaitingInput === 'mobile') {
+  //   // Mobile validation: 10 digits only
+  //   const mobileRegex = /^[0-9]{10}$/;
+  //   if (!mobileRegex.test(input)) {
+  //     this.addBotMessage("Please enter a valid 10-digit mobile number (numbers only).");
+  //     return;
+  //   }
 
-    this.userData.mobile = input;
-    this.awaitingInput = null;
-    this.currentFlow = 'userType';
-    this.showUserTypeSelection();
+  //   this.userData.mobile = input;
+  //   this.awaitingInput = null;
+  //   this.currentFlow = 'userType';
+  //   this.showUserTypeSelection();
 
-  } else if (this.awaitingInput === 'language') {
+  // } else 
+    if (this.awaitingInput === 'language') {
     this.userData.language = input;
     this.showCourseDetails(input);
 
