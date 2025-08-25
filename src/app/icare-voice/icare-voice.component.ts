@@ -7,7 +7,7 @@ import { FormsModule } from '@angular/forms';
 import { OpenAIService } from '../Services/open-ai.service';
 import { ChangeDetectorRef, NgZone } from '@angular/core';
 import { environment } from '../constants/environment';
-import { DeviceDetectorService } from 'ngx-device-detector';
+// import { DeviceDetectorService } from 'ngx-device-detector';
 
 // Speech Recognition interface declarations
 declare var webkitSpeechRecognition: any;
@@ -95,7 +95,7 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   userIp: string = '';
 
 
-  constructor(private http: HttpClient, private deviceService: DeviceDetectorService, private openAIService: OpenAIService, private cdr: ChangeDetectorRef, private ngZone: NgZone) {
+  constructor(private http: HttpClient, private openAIService: OpenAIService, private cdr: ChangeDetectorRef, private ngZone: NgZone) {
 
     this.speechSynthesis = window.speechSynthesis;
     // Check browser support for speech recognition
@@ -108,8 +108,7 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   }
 
   ngOnInit() {
-    const deviceInfo = this.deviceService.getDeviceInfo();
-    console.log('Device Info:', deviceInfo);
+   
     this.botSession.startTime = new Date().toISOString();// Record start time
     this.addBotMessage(
       "Welcome to iCare Life!\n\n" +

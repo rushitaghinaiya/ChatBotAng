@@ -1,0 +1,93 @@
+<div class="wrap">
+  <h2>WHO Data Explorer</h2>
+
+  <!-- Errors -->
+  <div *ngIf="error" class="alert error">{{ error }}</div>
+  <div *ngIf="loading" class="alert info">Loading…</div>
+
+  <!-- Life Expectancy -->
+  <section class="card">
+    <h3>Life Expectancy</h3>
+    <div class="row">
+      <label>Country code</label>
+      <input [(ngModel)]="country" placeholder="e.g. IND, USA" />
+      <button (click)="loadLife()">Get</button>
+    </div>
+
+    <div *ngIf="life.length">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Country</th>
+            <th>Year</th>
+            <th>Sex</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let r of life; trackBy: trackById">
+            <td>{{ r.SpatialDim }}</td>
+            <td>{{ r.TimeDim }}</td>
+            <td>{{ r.Dim1 }}</td>
+            <td>{{ r.Value }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Health Topics -->
+  <section class="card">
+    <h3>Health Topics</h3>
+    <div class="row">
+      <label>Search topic</label>
+      <input [(ngModel)]="search" placeholder="e.g. covid, malaria, polio" />
+      <button (click)="searchTopics()">Search</button>
+    </div>
+
+    <ul class="list" *ngIf="topics.length">
+      <li *ngFor="let t of topics; trackBy: trackById" (click)="loadDetails(t)" class="clickable">
+        <strong>{{ t.Title }}</strong>
+        <small *ngIf="t.Summary"> — {{ t.Summary }}</small>
+      </li>
+    </ul>
+  </section>
+
+  <!-- Details -->
+  <section class="grid" *ngIf="news.length || stats.length || facts.length">
+
+    <div class="card" *ngIf="news.length">
+      <h4>News</h4>
+      <ul class="list tight">
+        <li *ngFor="let n of news; trackBy: trackById">
+          <div class="title">{{ n.Title }}</div>
+          <div class="meta">
+            {{ n.PublicationDateAndTime | date:'dd-MM-yyyy' }}
+          </div>
+          <a *ngIf="n.ItemDefaultUrl" [href]="n.ItemDefaultUrl" target="_blank" rel="noopener">Open</a>
+        </li>
+      </ul>
+    </div>
+
+    <div class="card" *ngIf="stats.length">
+      <h4>Related Statistics</h4>
+      <ul class="list tight">
+        <li *ngFor="let s of stats; trackBy: trackById">
+          <div class="title">{{ s.Title }}</div>
+          <a *ngIf="s.ExternalURL" [href]="s.ExternalURL" target="_blank" rel="noopener">Open</a>
+        </li>
+      </ul>
+    </div>
+
+    <div class="card" *ngIf="facts.length">
+      <h4>Fact Sheets</h4>
+      <ul class="list tight">
+        <li *ngFor="let f of facts; trackBy: trackById">
+          <div class="title">{{ f.Title }}</div>
+          <a *ngIf="f.ItemDefaultUrl" [href]="f.ItemDefaultUrl" target="_blank" rel="noopener">Open</a>
+        </li>
+      </ul>
+    </div>
+
+  </section>
+</div>
