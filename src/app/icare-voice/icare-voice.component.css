@@ -128,7 +128,9 @@
   flex-direction: column;
   gap: 8px;
 }
-
+ .lang-option{
+  width: 50% !important; 
+ }
 .option-button {
   width: 100%;
   text-align: left;

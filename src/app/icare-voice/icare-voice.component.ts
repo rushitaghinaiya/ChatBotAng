@@ -7,6 +7,7 @@ import { FormsModule } from '@angular/forms';
 import { OpenAIService } from '../Services/open-ai.service';
 import { ChangeDetectorRef, NgZone } from '@angular/core';
 import { environment } from '../constants/environment';
+import { LanguageService } from '../Services/language.service';
 
 // Speech Recognition interface declarations
 declare var webkitSpeechRecognition: any;
@@ -35,6 +36,7 @@ interface Option {
   label: string;
   value: string;
   icon?: string;
+  code?:string;
 }
 
 interface UserData {
@@ -71,6 +73,57 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
     userType: '',
     language: ''
   };
+
+  translations: any = {
+  "welcomeGuest": {
+    "gb": "**Welcome, Guest!** 👋\n\n + I'm here to help you explore what iCare Life has to offer. What would you like to know about?",
+    "fr": "**Bienvenue, Invité !** 👋\n\nJe suis là pour vous aider à découvrir ce que iCare Life a à offrir. Que souhaitez-vous savoir ?",
+    "de": "**Willkommen, Gast!** 👋\n\nIch bin hier, um Ihnen zu zeigen, was iCare Life zu bieten hat. Was möchten Sie wissen?",
+    "it": "**Benvenuto, Ospite!** 👋\n\nSono qui per aiutarti a scoprire cosa offre iCare Life. Cosa vorresti sapere?",
+    "pl": "**Witaj, Gościu!** 👋\n\nJestem tutaj, aby pomóc Ci odkryć, co iCare Life ma do zaoferowania. Co chcesz wiedzieć?",
+    "ru": "**Добро пожаловать, Гость!** 👋\n\nЯ здесь, чтобы помочь вам узнать, что предлагает iCare Life. Что бы вы хотели узнать?",
+    "es": "**¡Bienvenido, Invitado!** 👋\n\nEstoy aquí para ayudarte a descubrir lo que iCare Life tiene para ofrecer. ¿Qué te gustaría saber?"
+  },
+  "testimonials": {
+    "gb": "⭐ Read Testimonials",
+    "fr": "⭐ Lire les témoignages",
+    "de": "⭐ Erfahrungsberichte lesen",
+    "it": "⭐ Leggi le testimonianze",
+    "pl": "⭐ Przeczytaj opinie",
+    "ru": "⭐ Читать отзывы",
+    "es": "⭐ Leer testimonios"
+  },
+  "benefits": {
+    "gb": "🎯 Benefits of iCare",
+    "fr": "🎯 Avantages d’iCare",
+    "de": "🎯 Vorteile von iCare",
+    "it": "🎯 Benefici di iCare",
+    "pl": "🎯 Korzyści z iCare",
+    "ru": "🎯 Преимущества iCare",
+    "es": "🎯 Beneficios de iCare"
+  },
+  "health": {
+    "gb": "❤️ General Health Queries",
+    "fr": "❤️ Questions générales de santé",
+    "de": "❤️ Allgemeine Gesundheitsfragen",
+    "it": "❤️ Domande generali sulla salute",
+    "pl": "❤️ Ogólne pytania zdrowotne",
+    "ru": "❤️ Общие вопросы о здоровье",
+    "es": "❤️ Consultas generales de salud"
+  },
+  "mainMenu": {
+    "gb": "🏠 Back to Main Menu",
+    "fr": "🏠 Retour au menu principal",
+    "de": "🏠 Zurück zum Hauptmenü",
+    "it": "🏠 Torna al menu principale",
+    "pl": "🏠 Powrót do menu głównego",
+    "ru": "🏠 Назад в главное меню",
+    "es": "🏠 Volver al menú principal"
+  }
+};
+
+  currentLang: string = 'en'; // default, update dynamically later
+
   botSession: BotSession = {
     userId: 0,
     startTime: '',
@@ -94,7 +147,7 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   userIp: string = '';
 
 
-  constructor(private http: HttpClient, private openAIService: OpenAIService, private cdr: ChangeDetectorRef, private ngZone: NgZone) {
+  constructor(private http: HttpClient,private languageService: LanguageService, private openAIService: OpenAIService, private cdr: ChangeDetectorRef, private ngZone: NgZone) {
 
     this.speechSynthesis = window.speechSynthesis;
     // Check browser support for speech recognition
@@ -107,7 +160,11 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   }
 
   ngOnInit() {
-
+     this.languageService.loadTranslations().subscribe(data => {
+      this.languageService.setTranslations(data);
+    });
+   // this.translations = this.languageService.getTranslations();
+    debugger;
     this.botSession.startTime = new Date().toISOString();// Record start time
     this.addBotMessage(
       "Welcome to iCare Life!\n\n" +
@@ -116,15 +173,15 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       "Let's start by getting to know you better.\n\n" +
       "Please select your preferred language to continue:",
       [
-        { label: '🇬 English', value: 'langs_english', icon: '🇬🇧' },
-        { label: '🇫 French', value: 'langs_french', icon: '🇫🇷' },
-        { label: '🇩 German', value: 'langs_german', icon: '🇩🇪' },
-        { label: '🇮 Italian', value: 'langs_italian', icon: '🇮🇹' },
-        { label: '🇵 Polish', value: 'langs_polish', icon: '🇵🇱' },
-        { label: '🇵 Portuguese', value: 'langs_portuguese', icon: '🇵🇹' },
-        { label: '🇷 Romanian', value: 'langs_romanian', icon: '🇷🇴' },
-        { label: '🇷 Russian', value: 'langs_russian', icon: '🇷🇺' },
-        { label: '🇪 Spanish', value: 'langs_spanish', icon: '🇪🇸' }
+        { label: '🇬 English', value: 'langs_english', icon: '🇬🇧',code:'gb' },
+        { label: '🇫 French', value: 'langs_french', icon: '🇫🇷' ,code:'fr'},
+        { label: '🇩 German', value: 'langs_german', icon: '🇩🇪' ,code:'de'},
+        { label: '🇮 Italian', value: 'langs_italian', icon: '🇮🇹',code:'it' },
+        { label: '🇵 Polish', value: 'langs_polish', icon: '🇵🇱' ,code:'pl'},
+        { label: '🇵 Portuguese', value: 'langs_portuguese', icon: '🇵🇹' ,code:'pt'},
+        { label: '🇷 Romanian', value: 'langs_romanian', icon: '🇷🇴' ,code:'ro'},
+        { label: '🇷 Russian', value: 'langs_russian', icon: '🇷🇺' ,code:'ru'},
+        { label: '🇪 Spanish', value: 'langs_spanish', icon: '🇪🇸' ,code:'es'}
       ]
 
     );
@@ -140,7 +197,9 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   handleBeforeUnload(event: Event): void {
     this.calculateTimeSpent();
   }
-
+ onLanguageChange(lang: string) {
+    this.languageService.setTranslations(lang);
+  }
   ngOnDestroy(): void {
     this.calculateTimeSpent();
   }
@@ -213,7 +272,7 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
 
   handleUserInput(input: string): void {
     this.addUserMessage(input.trim());
-
+    
     if (this.awaitingInput === 'langs') {
       
     }
@@ -291,9 +350,11 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   handleOptionClick(option: Option): void {
     this.addUserMessage(option.label);
     this.topic = option.label;
+    
     if (option.value.startsWith('langs_')) {
-      const language = option.value.replace('langs_', '');
-      this.userData.language = language;
+     this.currentLang = option.code || 'gb';
+
+      this.showGuestMenu();
     }
     if (option.value === 'student' || option.value === 'partner' || option.value === 'guest') {
       this.userData.userType = option.value;
@@ -544,17 +605,18 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   }
 
   showGuestMenu(): void {
-    this.addBotMessage(
-      `**Welcome, Guest!** 👋\n\n` +
-      `I'm here to help you explore what iCare Life has to offer. What would you like to know about?`,
-      [
-        { label: '⭐ Read Testimonials', value: 'testimonials' },
-        { label: '🎯 Benefits of iCare', value: 'benefits' },
-        { label: '❤️ General Health Queries', value: 'health' },
-        { label: '📚 Explore Courses', value: 'curriculum' },
-        { label: '🏠 Back to Main Menu', value: 'mainMenu' }
-      ]
-    );
+    debugger;
+   this.addBotMessage(
+  this.translations['welcomeGuest'][this.currentLang],
+  [
+    { label: this.translations['testimonials'][this.currentLang], value: 'testimonials' },
+    { label: this.translations['benefits'][this.currentLang], value: 'benefits' },
+    { label: this.translations['health'][this.currentLang], value: 'health' },
+    { label: this.translations['curriculum'][this.currentLang], value: 'curriculum' },
+    { label: this.translations['mainMenu'][this.currentLang], value: 'mainMenu' }
+  ]
+);
+
   }
 
   showTestimonials(): void {
@@ -707,7 +769,6 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   }
 
   getOptionLabel(option: Option): string {
-    debugger;
     const a = option.label.slice(2);
     return option.label.length > 2 ? option.label.slice(2) : option.label;
   }

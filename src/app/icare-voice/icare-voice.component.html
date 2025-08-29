@@ -68,6 +68,7 @@
     <div *ngIf="message.options" class="options-container">
       <button *ngFor="let option of message.options"
               class="option-button"
+              [ngClass]="{ 'lang-option':option.value.startsWith('langs') }"
               (click)="handleOptionClick(option)">
         <span class="option-icon">{{ getOptionIcon(option) }}</span>
         <span>{{ getOptionLabel(option) }}</span>

@@ -1,0 +1,108 @@
+{
+  "hello": {
+    "fr": "Bonjour",
+    "de": "Hallo",
+    "it": "Ciao",
+    "pl": "Cześć",
+    "ru": "Привет",
+    "es": "Hola"
+  },
+  "how_are_you": {
+    "fr": "Comment ça va ?",
+    "de": "Wie geht's?",
+    "it": "Come stai?",
+    "pl": "Jak się masz?",
+    "ru": "Как дела?",
+    "es": "¿Cómo estás?"
+  },
+  "bye": {
+    "fr": "Au revoir",
+    "de": "Tschüss",
+    "it": "Arrivederci",
+    "pl": "Do widzenia",
+    "ru": "До свидания",
+    "es": "Adiós"
+  },
+  "knowMore": {
+    "gb":"📚 Know More About iCare",
+    "fr": "📚 En savoir plus sur iCare",
+    "de": "📚 Mehr über iCare erfahren",
+    "it": "📚 Scopri di più su iCare",
+    "pl": "📚 Dowiedz się więcej o iCare",
+    "ru": "📚 Узнать больше о iCare",
+    "es": "📚 Saber más sobre iCare"
+  },
+  "curriculum": {
+    "gb":"🎯 View Curriculum & Languages",
+    "fr": "🎯 Voir le programme et les langues",
+    "de": "🎯 Lehrplan und Sprachen ansehen",
+    "it": "🎯 Visualizza curriculum e lingue",
+    "pl": "🎯 Zobacz program i języki",
+    "ru": "🎯 Просмотреть учебный план и языки",
+    "es": "🎯 Ver plan de estudios e idiomas"
+  },
+  "caregiving": {
+    "gb":"💼 Caregiving Modules",
+    "fr": "💼 Modules de soins",
+    "de": "💼 Pflege-Module",
+    "it": "💼 Moduli di assistenza",
+    "pl": "💼 Moduły opieki",
+    "ru": "💼 Модули ухода",
+    "es": "💼 Módulos de cuidado"
+  },
+  "pricing": {
+    "gb":"💰 Pricing & Trial Options",
+    "fr": "💰 Tarifs et options d'essai",
+    "de": "💰 Preise & Testoptionen",
+    "it": "💰 Prezzi e opzioni di prova",
+    "pl": "💰 Cennik i opcje próbne",
+    "ru": "💰 Цены и пробные варианты",
+    "es": "💰 Precios y opciones de prueba"
+  },
+ 
+  "welcomeGuest": {
+    "gb":"**Welcome, Guest!** 👋\n\n + I'm here to help you explore what iCare Life has to offer. What would you like to know about?",
+    "fr": "**Bienvenue, Invité !** 👋\n\nJe suis là pour vous aider à découvrir ce que iCare Life a à offrir. Que souhaitez-vous savoir ?",
+    "de": "**Willkommen, Gast!** 👋\n\nIch bin hier, um Ihnen zu zeigen, was iCare Life zu bieten hat. Was möchten Sie wissen?",
+    "it": "**Benvenuto, Ospite!** 👋\n\nSono qui per aiutarti a scoprire cosa offre iCare Life. Cosa vorresti sapere?",
+    "pl": "**Witaj, Gościu!** 👋\n\nJestem tutaj, aby pomóc Ci odkryć, co iCare Life ma do zaoferowania. Co chcesz wiedzieć?",
+    "ru": "**Добро пожаловать, Гость!** 👋\n\nЯ здесь, чтобы помочь вам узнать, что предлагает iCare Life. Что бы вы хотели узнать?",
+    "es": "**¡Bienvenido, Invitado!** 👋\n\nEstoy aquí para ayudarte a descubrir lo que iCare Life tiene para ofrecer. ¿Qué te gustaría saber?"
+  },
+  "testimonials": {
+    "gb":"⭐ Read Testimonials",
+    "fr": "⭐ Lire les témoignages",
+    "de": "⭐ Erfahrungsberichte lesen",
+    "it": "⭐ Leggi le testimonianze",
+    "pl": "⭐ Przeczytaj opinie",
+    "ru": "⭐ Читать отзывы",
+    "es": "⭐ Leer testimonios"
+  },
+  "benefits": {
+    "gb":"🎯 Benefits of iCare",
+    "fr": "🎯 Avantages d’iCare",
+    "de": "🎯 Vorteile von iCare",
+    "it": "🎯 Benefici di iCare",
+    "pl": "🎯 Korzyści z iCare",
+    "ru": "🎯 Преимущества iCare",
+    "es": "🎯 Beneficios de iCare"
+  },
+  "health": {
+    "gb":"❤️ General Health Queries",
+    "fr": "❤️ Questions générales de santé",
+    "de": "❤️ Allgemeine Gesundheitsfragen",
+    "it": "❤️ Domande generali sulla salute",
+    "pl": "❤️ Ogólne pytania zdrowotne",
+    "ru": "❤️ Общие вопросы о здоровье",
+    "es": "❤️ Consultas generales de salud"
+  },
+  "mainMenu": {
+    "gb":"🏠 Back to Main Menu",
+    "fr": "🏠 Retour au menu principal",
+    "de": "🏠 Zurück zum Hauptmenü",
+    "it": "🏠 Torna al menu principale",
+    "pl": "🏠 Powrót do menu głównego",
+    "ru": "🏠 Назад в главное меню",
+    "es": "🏠 Volver al menú principal"
+  }
+}
