@@ -107,23 +107,35 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   }
 
   ngOnInit() {
-   
+
     this.botSession.startTime = new Date().toISOString();// Record start time
     this.addBotMessage(
       "Welcome to iCare Life!\n\n" +
       "**Empowering YOU with skill-training for a Brighter Future!**\n\n" +
       "I'm your virtual assistant, here to help you explore our integrated platform for caregiver training and certification. " +
       "Let's start by getting to know you better.\n\n" +
-      "What's your name?"
+      "Please select your preferred language to continue:",
+      [
+        { label: '🇬 English', value: 'langs_english', icon: '🇬🇧' },
+        { label: '🇫 French', value: 'langs_french', icon: '🇫🇷' },
+        { label: '🇩 German', value: 'langs_german', icon: '🇩🇪' },
+        { label: '🇮 Italian', value: 'langs_italian', icon: '🇮🇹' },
+        { label: '🇵 Polish', value: 'langs_polish', icon: '🇵🇱' },
+        { label: '🇵 Portuguese', value: 'langs_portuguese', icon: '🇵🇹' },
+        { label: '🇷 Romanian', value: 'langs_romanian', icon: '🇷🇴' },
+        { label: '🇷 Russian', value: 'langs_russian', icon: '🇷🇺' },
+        { label: '🇪 Spanish', value: 'langs_spanish', icon: '🇪🇸' }
+      ]
+
     );
-    this.awaitingInput = 'name';
+    this.awaitingInput = 'langs';
 
     // Speak welcome message if voice is enabled
     if (this.voiceEnabled && this.browserSupportsVoice) {
       // this.speak("Welcome to iCare Life! I'm your virtual assistant. Let's start by getting to know you better. What's your name?");
     }
   }
-  
+
   @HostListener('window:beforeunload', ['$event'])
   handleBeforeUnload(event: Event): void {
     this.calculateTimeSpent();
@@ -199,50 +211,53 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
     this.scrollToBottom();
   }
 
- handleUserInput(input: string): void {
-  this.addUserMessage(input.trim());
+  handleUserInput(input: string): void {
+    this.addUserMessage(input.trim());
 
-  if (this.awaitingInput === 'name') {
-    // Name validation: only letters and at least 2 characters
-    const nameRegex = /^[a-zA-Z ]{2,}$/;
-    if (!nameRegex.test(input)) {
-      this.addBotMessage("Please enter a valid name (only alphabets, minimum 2 characters).");
-      return;
+    if (this.awaitingInput === 'langs') {
+      
+    }
+    if (this.awaitingInput === 'name') {
+      // Name validation: only letters and at least 2 characters
+      const nameRegex = /^[a-zA-Z ]{2,}$/;
+      if (!nameRegex.test(input)) {
+        this.addBotMessage("Please enter a valid name (only alphabets, minimum 2 characters).");
+        return;
+      }
+
+      this.userData.name = input;
+      this.awaitingInput = 'mobile';
+      this.addBotMessage(`Nice to meet you, ${input}! 😊\n\nCould you please share your phone number so we can keep you updated about our programs?`);
+
+    } else if (this.awaitingInput === 'mobile') {
+      // Mobile validation: 10 digits only
+      const mobileRegex = /^[0-9]{10}$/;
+      if (!mobileRegex.test(input)) {
+        this.addBotMessage("Please enter a valid 10-digit mobile number (numbers only).");
+        return;
+      }
+
+      this.userData.mobile = input;
+      this.awaitingInput = null;
+      this.currentFlow = 'userType';
+      this.showUserTypeSelection();
+
+    } else if (this.awaitingInput === 'language') {
+      this.userData.language = input;
+      this.showCourseDetails(input);
+
+    } else if (this.currentFlow === 'health') {
+      this.handleHealthQuery(input);
+
+    } else {
+      this.handleGeneralInput(input);
     }
 
-    this.userData.name = input;
-    this.awaitingInput = 'mobile';
-    this.addBotMessage(`Nice to meet you, ${input}! 😊\n\nCould you please share your phone number so we can keep you updated about our programs?`);
-
-  } else if (this.awaitingInput === 'mobile') {
-    // Mobile validation: 10 digits only
-    const mobileRegex = /^[0-9]{10}$/;
-    if (!mobileRegex.test(input)) {
-      this.addBotMessage("Please enter a valid 10-digit mobile number (numbers only).");
-      return;
+    // Save only if both fields are filled and valid
+    if (this.userData.name && this.userData.mobile) {
+      this.saveUserInfo();
     }
-
-    this.userData.mobile = input;
-    this.awaitingInput = null;
-    this.currentFlow = 'userType';
-    this.showUserTypeSelection();
-
-  } else if (this.awaitingInput === 'language') {
-    this.userData.language = input;
-    this.showCourseDetails(input);
-
-  } else if (this.currentFlow === 'health') {
-    this.handleHealthQuery(input);
-
-  } else {
-    this.handleGeneralInput(input);
   }
-
-  // Save only if both fields are filled and valid
-  if (this.userData.name && this.userData.mobile) {
-    this.saveUserInfo();
-  }
-}
 
   saveUserInfo(): void {
 
@@ -276,6 +291,10 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   handleOptionClick(option: Option): void {
     this.addUserMessage(option.label);
     this.topic = option.label;
+    if (option.value.startsWith('langs_')) {
+      const language = option.value.replace('langs_', '');
+      this.userData.language = language;
+    }
     if (option.value === 'student' || option.value === 'partner' || option.value === 'guest') {
       this.userData.userType = option.value;
       this.previousFlow.push(this.currentFlow);
@@ -688,6 +707,8 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   }
 
   getOptionLabel(option: Option): string {
+    debugger;
+    const a = option.label.slice(2);
     return option.label.length > 2 ? option.label.slice(2) : option.label;
   }
 
@@ -891,24 +912,24 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       );
     }
   }
-removeEmojis(text: string): string {
-return text
-    // Remove emojis and invisible emoji-related characters
-    .replace(
-      /([\u2700-\u27BF]|[\uE000-\uF8FF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|\uFE0F|\u200D)/g,
-      ''
-    )
-    // Replace all types of spaces and collapse multiple into one
-    .replace(/[\s\u00A0]+/g, ' ')
-    // Trim leading/trailing spaces
-    .trim();
-}
+  removeEmojis(text: string): string {
+    return text
+      // Remove emojis and invisible emoji-related characters
+      .replace(
+        /([\u2700-\u27BF]|[\uE000-\uF8FF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|\uFE0F|\u200D)/g,
+        ''
+      )
+      // Replace all types of spaces and collapse multiple into one
+      .replace(/[\s\u00A0]+/g, ' ')
+      // Trim leading/trailing spaces
+      .trim();
+  }
   saveQueryHistory() {
     if (this.messages.length >= 6) {
 
       const queryText = this.messages[this.messages.length - 2];
       const responseText = this.messages[this.messages.length - 1] || '';
-      
+
       const queryDto = {
         userId: this.userId,
         queryText: queryText.text,
