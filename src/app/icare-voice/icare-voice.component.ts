@@ -1,5 +1,5 @@
 // icare-chatbot.component.ts
-import { Component, OnInit, ViewChild, ElementRef, AfterViewChecked, HostListener } from '@angular/core';
+import { Component, OnInit, signal, ViewChild, ElementRef, AfterViewChecked, HostListener } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { HttpClientModule } from '@angular/common/http';
@@ -8,6 +8,8 @@ import { OpenAIService } from '../Services/open-ai.service';
 import { ChangeDetectorRef, NgZone } from '@angular/core';
 import { environment } from '../constants/environment';
 import { LanguageService } from '../Services/language.service';
+import { TranslationService } from '../Services/translation.service';
+import { firstValueFrom } from 'rxjs';
 
 // Speech Recognition interface declarations
 declare var webkitSpeechRecognition: any;
@@ -36,14 +38,16 @@ interface Option {
   label: string;
   value: string;
   icon?: string;
-  code?:string;
+  code?: string;
 }
 
 interface UserData {
   name: string;
   mobile: string;
+  email: string;
   userType: string;
   language: string;
+  course:string;
 }
 
 interface BotSession {
@@ -70,59 +74,15 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   userData: UserData = {
     name: '',
     mobile: '',
+    email: '',
     userType: '',
-    language: ''
+    language: '',
+    course:''
   };
+  queryCount: number = 0;
+  translations: any = {};
 
-  translations: any = {
-  "welcomeGuest": {
-    "gb": "**Welcome, Guest!** 👋\n\n + I'm here to help you explore what iCare Life has to offer. What would you like to know about?",
-    "fr": "**Bienvenue, Invité !** 👋\n\nJe suis là pour vous aider à découvrir ce que iCare Life a à offrir. Que souhaitez-vous savoir ?",
-    "de": "**Willkommen, Gast!** 👋\n\nIch bin hier, um Ihnen zu zeigen, was iCare Life zu bieten hat. Was möchten Sie wissen?",
-    "it": "**Benvenuto, Ospite!** 👋\n\nSono qui per aiutarti a scoprire cosa offre iCare Life. Cosa vorresti sapere?",
-    "pl": "**Witaj, Gościu!** 👋\n\nJestem tutaj, aby pomóc Ci odkryć, co iCare Life ma do zaoferowania. Co chcesz wiedzieć?",
-    "ru": "**Добро пожаловать, Гость!** 👋\n\nЯ здесь, чтобы помочь вам узнать, что предлагает iCare Life. Что бы вы хотели узнать?",
-    "es": "**¡Bienvenido, Invitado!** 👋\n\nEstoy aquí para ayudarte a descubrir lo que iCare Life tiene para ofrecer. ¿Qué te gustaría saber?"
-  },
-  "testimonials": {
-    "gb": "⭐ Read Testimonials",
-    "fr": "⭐ Lire les témoignages",
-    "de": "⭐ Erfahrungsberichte lesen",
-    "it": "⭐ Leggi le testimonianze",
-    "pl": "⭐ Przeczytaj opinie",
-    "ru": "⭐ Читать отзывы",
-    "es": "⭐ Leer testimonios"
-  },
-  "benefits": {
-    "gb": "🎯 Benefits of iCare",
-    "fr": "🎯 Avantages d’iCare",
-    "de": "🎯 Vorteile von iCare",
-    "it": "🎯 Benefici di iCare",
-    "pl": "🎯 Korzyści z iCare",
-    "ru": "🎯 Преимущества iCare",
-    "es": "🎯 Beneficios de iCare"
-  },
-  "health": {
-    "gb": "❤️ General Health Queries",
-    "fr": "❤️ Questions générales de santé",
-    "de": "❤️ Allgemeine Gesundheitsfragen",
-    "it": "❤️ Domande generali sulla salute",
-    "pl": "❤️ Ogólne pytania zdrowotne",
-    "ru": "❤️ Общие вопросы о здоровье",
-    "es": "❤️ Consultas generales de salud"
-  },
-  "mainMenu": {
-    "gb": "🏠 Back to Main Menu",
-    "fr": "🏠 Retour au menu principal",
-    "de": "🏠 Zurück zum Hauptmenü",
-    "it": "🏠 Torna al menu principale",
-    "pl": "🏠 Powrót do menu głównego",
-    "ru": "🏠 Назад в главное меню",
-    "es": "🏠 Volver al menú principal"
-  }
-};
-
-  currentLang: string = 'en'; // default, update dynamically later
+  currentLang = signal<string>('en');// default, update dynamically later
 
   botSession: BotSession = {
     userId: 0,
@@ -147,7 +107,7 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   userIp: string = '';
 
 
-  constructor(private http: HttpClient,private languageService: LanguageService, private openAIService: OpenAIService, private cdr: ChangeDetectorRef, private ngZone: NgZone) {
+  constructor(private http: HttpClient, private translationService: TranslationService, private languageService: LanguageService, private openAIService: OpenAIService, private cdr: ChangeDetectorRef, private ngZone: NgZone) {
 
     this.speechSynthesis = window.speechSynthesis;
     // Check browser support for speech recognition
@@ -160,11 +120,6 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   }
 
   ngOnInit() {
-     this.languageService.loadTranslations().subscribe(data => {
-      this.languageService.setTranslations(data);
-    });
-   // this.translations = this.languageService.getTranslations();
-    debugger;
     this.botSession.startTime = new Date().toISOString();// Record start time
     this.addBotMessage(
       "Welcome to iCare Life!\n\n" +
@@ -173,15 +128,15 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       "Let's start by getting to know you better.\n\n" +
       "Please select your preferred language to continue:",
       [
-        { label: '🇬 English', value: 'langs_english', icon: '🇬🇧',code:'gb' },
-        { label: '🇫 French', value: 'langs_french', icon: '🇫🇷' ,code:'fr'},
-        { label: '🇩 German', value: 'langs_german', icon: '🇩🇪' ,code:'de'},
-        { label: '🇮 Italian', value: 'langs_italian', icon: '🇮🇹',code:'it' },
-        { label: '🇵 Polish', value: 'langs_polish', icon: '🇵🇱' ,code:'pl'},
-        { label: '🇵 Portuguese', value: 'langs_portuguese', icon: '🇵🇹' ,code:'pt'},
-        { label: '🇷 Romanian', value: 'langs_romanian', icon: '🇷🇴' ,code:'ro'},
-        { label: '🇷 Russian', value: 'langs_russian', icon: '🇷🇺' ,code:'ru'},
-        { label: '🇪 Spanish', value: 'langs_spanish', icon: '🇪🇸' ,code:'es'}
+        { label: '🇬 English', value: 'langs_english', icon: '🇬🇧', code: 'en' },
+        { label: '🇫 French', value: 'langs_french', icon: '🇫🇷', code: 'fr' },
+        { label: '🇩 German', value: 'langs_german', icon: '🇩🇪', code: 'de' },
+        { label: '🇮 Italian', value: 'langs_italian', icon: '🇮🇹', code: 'it' },
+        { label: '🇵 Polish', value: 'langs_polish', icon: '🇵🇱', code: 'pl' },
+        { label: '🇵 Portuguese', value: 'langs_portuguese', icon: '🇵🇹', code: 'pt' },
+        { label: '🇷 Romanian', value: 'langs_romanian', icon: '🇷🇴', code: 'ro' },
+        { label: '🇷 Russian', value: 'langs_russian', icon: '🇷🇺', code: 'ru' },
+        { label: '🇪 Spanish', value: 'langs_spanish', icon: '🇪🇸', code: 'es' }
       ]
 
     );
@@ -197,7 +152,7 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   handleBeforeUnload(event: Event): void {
     this.calculateTimeSpent();
   }
- onLanguageChange(lang: string) {
+  onLanguageChange(lang: string) {
     this.languageService.setTranslations(lang);
   }
   ngOnDestroy(): void {
@@ -270,23 +225,26 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
     this.scrollToBottom();
   }
 
-  handleUserInput(input: string): void {
+  async handleUserInput(input: string): Promise<void> {
     this.addUserMessage(input.trim());
-    
-    if (this.awaitingInput === 'langs') {
-      
-    }
+
     if (this.awaitingInput === 'name') {
       // Name validation: only letters and at least 2 characters
-      const nameRegex = /^[a-zA-Z ]{2,}$/;
+      const nameRegex = /^[\p{L}\p{M} ]{2,}$/u;
       if (!nameRegex.test(input)) {
-        this.addBotMessage("Please enter a valid name (only alphabets, minimum 2 characters).");
+        const translatedText = await this.translateLang(
+          `Please enter a valid name (only alphabets, minimum 2 characters).`
+        );
+        this.addBotMessage(translatedText);
         return;
       }
 
       this.userData.name = input;
-      this.awaitingInput = 'mobile';
-      this.addBotMessage(`Nice to meet you, ${input}! 😊\n\nCould you please share your phone number so we can keep you updated about our programs?`);
+      this.awaitingInput = 'email';
+      const translatedText = await this.translateLang(
+        `Nice to meet you, ${input} 🙏 Now, please share your email address so we can verify your access and serve you better.`
+      );
+      this.addBotMessage(translatedText);
 
     } else if (this.awaitingInput === 'mobile') {
       // Mobile validation: 10 digits only
@@ -301,12 +259,58 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       this.currentFlow = 'userType';
       this.showUserTypeSelection();
 
-    } else if (this.awaitingInput === 'language') {
+    } else if (this.awaitingInput === 'email')  //Add new if for email
+    {
+      // Email validation
+      const emailRegex = /^[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[\p{L}]{2,}$/u;
+
+      if (!emailRegex.test(input)) {
+        const translatedText = await this.translateLang(
+          `Please enter a valid email address (e.g., user@example.com).`
+        );
+        this.addBotMessage(translatedText);
+        return;
+      }
+      const email = await firstValueFrom(
+        this.translationService.translateText(input, 'en')
+      );
+      this.userData.email = email;
+      this.awaitingInput = null;
+      // ✅ If valid email, you can call your API here
+      this.login(input).subscribe((res) => {
+        if (res.success) {
+          this.userData.course=JSON.stringify(res.data);
+          if (!res.data || res.data.length === 0) {
+            this.userData.userType='member';
+          } else {
+            this.userData.userType='student';
+          }
+          this.addBotMessage("✅ Verified successfully! Your courses have been saved.");
+        } else {
+          this.addBotMessage("register / purchase course");
+        }
+      });
+    }
+
+    else if (this.awaitingInput === 'language') {
       this.userData.language = input;
       this.showCourseDetails(input);
 
     } else if (this.currentFlow === 'health') {
-      this.handleHealthQuery(input);
+      this.queryCount += 1;
+      const userType = this.userData.userType;
+
+      if (this.queryCount <= 3 || userType === 'student' || userType === 'member') {
+       debugger;
+        this.handleHealthQuery(input);
+
+      }
+      else {
+        this.awaitingInput = 'name';
+        const translatedText = await this.translateLang(
+          `🔒 You’ve reached the free limit of 3 questions.To continue, may I know your name so we can personalize your experience?`);
+        this.addBotMessage(translatedText);
+      }
 
     } else {
       this.handleGeneralInput(input);
@@ -316,6 +320,27 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
     if (this.userData.name && this.userData.mobile) {
       this.saveUserInfo();
     }
+  }
+
+  onLogin() {
+    this.login(this.userData.email).subscribe((res) => {
+      if (res.success) {
+        // store courses in localStorage
+        localStorage.setItem('courses', JSON.stringify(res.data));
+        if (!res.data || res.data.length === 0) {
+          localStorage.setItem('userType', 'member');
+        } else {
+          localStorage.setItem('userType', 'student');
+        }
+        alert(res.message); // "User exists"
+      } else {
+        alert(res.message); // "User not found"
+      }
+    });
+  }
+
+  login(email: string) {
+    return this.http.post<any>(`${this.baseUrl}UserSignUp/VerifyEmail`, { email });
   }
 
   saveUserInfo(): void {
@@ -347,14 +372,22 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
     }
   }
 
-  handleOptionClick(option: Option): void {
+  async handleOptionClick(option: Option): Promise<void> {
+    option.label = option.label.split(' ')[1];
     this.addUserMessage(option.label);
     this.topic = option.label;
-    
-    if (option.value.startsWith('langs_')) {
-     this.currentLang = option.code || 'gb';
 
-      this.showGuestMenu();
+    if (option.value.startsWith('langs_')) {
+      this.currentLang.set(option.code || 'en');
+
+      const translatedText = await this.translateLang(
+        `Thank you for selecting ${option.label}. You may now ask any questions.`
+      );
+      this.addBotMessage(translatedText);
+      this.previousFlow.push(this.currentFlow);
+      this.currentFlow = 'health';
+      return;
+      //this.showGuestMenu();
     }
     if (option.value === 'student' || option.value === 'partner' || option.value === 'guest') {
       this.userData.userType = option.value;
@@ -605,17 +638,16 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   }
 
   showGuestMenu(): void {
-    debugger;
-   this.addBotMessage(
-  this.translations['welcomeGuest'][this.currentLang],
-  [
-    { label: this.translations['testimonials'][this.currentLang], value: 'testimonials' },
-    { label: this.translations['benefits'][this.currentLang], value: 'benefits' },
-    { label: this.translations['health'][this.currentLang], value: 'health' },
-    { label: this.translations['curriculum'][this.currentLang], value: 'curriculum' },
-    { label: this.translations['mainMenu'][this.currentLang], value: 'mainMenu' }
-  ]
-);
+    // this.addBotMessage(
+    //   this.translations['welcomeGuest'][this.currentLang],
+    //   [
+    //     { label: this.translations['testimonials'][this.currentLang], value: 'testimonials' },
+    //     { label: this.translations['benefits'][this.currentLang], value: 'benefits' },
+    //     { label: this.translations['health'][this.currentLang], value: 'health' },
+    //     { label: this.translations['curriculum'][this.currentLang], value: 'curriculum' },
+    //     { label: this.translations['mainMenu'][this.currentLang], value: 'mainMenu' }
+    //   ]
+    // );
 
   }
 
@@ -769,8 +801,8 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   }
 
   getOptionLabel(option: Option): string {
-    const a = option.label.slice(2);
-    return option.label.length > 2 ? option.label.slice(2) : option.label;
+
+    return option.label.length > 2 ? option.label.slice(2).trim() : option.label;
   }
 
   // Voice Recognition Methods
@@ -901,7 +933,13 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       this.isSpeaking = false;
     }
   }
+  async translateLang(text: string): Promise<string> {
 
+    // Translate user message to selected language
+    return await firstValueFrom(
+      this.translationService.translateText(text, this.currentLang())
+    );
+  }
   // Override addBotMessage to include speech
   addBotMessage(text: string, options: Option[] | null = null, resTime: number | null = null): void {
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -943,17 +981,17 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       // Remove typing indicator
       this.messages.pop();
       console.log(responseTime);
-      const response = `${healthAdvice}\n\n` +
+      const translatedhealthAdvice = await this.translateLang(
+        healthAdvice);
+      const translatedTex = await this.translateLang(
         `⚠️ **Important Disclaimer:** This information is for educational purposes only and should not replace professional medical advice. ` +
-        `Always consult with qualified healthcare professionals for personalized medical guidance.`;
+        `Always consult with qualified healthcare professionals for personalized medical guidance.`);
+      const response = `${translatedhealthAdvice}\n\n` +
+        translatedTex;
 
       this.addBotMessage(
         response,
-        [
-          { label: '❤️ Ask Another Health Question', value: 'health' },
-          { label: '⬅️ Back to Previous Menu', value: 'back' },
-          { label: '🏠 Back to Main Menu', value: 'mainMenu' }
-        ], responseTime
+        null, responseTime
       );
 
       // Speak the health advice
@@ -986,17 +1024,18 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       .trim();
   }
   saveQueryHistory() {
-    if (this.messages.length >= 6) {
+    debugger;
+    if (this.userData.email!=null && this.userData.email!=""&&this.messages.length>=16) {
 
       const queryText = this.messages[this.messages.length - 2];
       const responseText = this.messages[this.messages.length - 1] || '';
 
       const queryDto = {
-        userId: this.userId,
+        emailId: this.userData.email,
         queryText: queryText.text,
         responseText: responseText.text,
         responseTime: responseText.responseTime,       // If available
-        topic: this.removeEmojis(responseText.topic),
+        topic: '',
         status: responseText.text ? 'Answered' : 'Unanswered'
       };
       this.http.post(`${this.baseUrl}user/SaveQueryHistory`, queryDto).subscribe({

@@ -32,14 +32,14 @@ export const tokenInterceptor: HttpInterceptorFn = (
   }
 
   return next(newReq).pipe(
-    catchError(err => {
-      if (err.status === 401) {
-        console.warn('⛔ Token expired or unauthorized. Redirecting to login...');
-        localStorage.removeItem('accessToken'); // Optional cleanup
-        router.navigate(['/chatbot']); 
-      }
+    // catchError(err => {
+    //   if (err.status === 401) {
+    //     console.warn('⛔ Token expired or unauthorized. Redirecting to login...');
+    //     localStorage.removeItem('accessToken'); // Optional cleanup
+    //     router.navigate(['/chatbot']); 
+    //   }
 
-      return throwError(() => err);
-    })
+    //   return throwError(() => err);
+    // })
   );
 };
