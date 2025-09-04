@@ -29,7 +29,6 @@ export class OpenAIService {
 
     try {
       const response: any = await firstValueFrom(this.http.post(this.apiUrl, body, { headers }));
-      debugger;
       return response.choices[0]?.message?.content || 'Sorry, I couldn’t generate a response.';
     } catch (error) {
       console.error('OpenAI API error:', error);

@@ -10,6 +10,8 @@ import { environment } from '../constants/environment';
 import { LanguageService } from '../Services/language.service';
 import { TranslationService } from '../Services/translation.service';
 import { firstValueFrom } from 'rxjs';
+import { Observable } from 'rxjs';
+import { HttpParams } from '@angular/common/http';
 
 // Speech Recognition interface declarations
 declare var webkitSpeechRecognition: any;
@@ -58,6 +60,31 @@ interface BotSession {
   totalTimeSpent: number; // in seconds
 }
 
+// models/qna.model.ts
+
+export interface ApiResponseVM<T> {
+  success: boolean;
+  message: string;
+  data: T;
+}
+
+export interface QnAResponse {
+  question: string;
+  answers: Answer[];
+}
+
+export interface Answer {
+  category: string;
+  response: string;
+  source: Source[];
+}
+
+export interface Source {
+  filename: string;
+  timestamps: string[];
+}
+
+
 @Component({
   selector: 'app-icare-voice',
   imports: [CommonModule, FormsModule],
@@ -79,11 +106,12 @@ export class IcareVoiceComponent implements OnInit {
     language: '',
     course: ''
   };
+  apiResponse: ApiResponseVM<QnAResponse> | null = null;
   queryCount: number = 0;
   translations: any = {};
   chatJson: any[] = [];;
   currentLang = signal<string>('en');// default, update dynamically later
-
+  currentLanguage='English';
   botSession: BotSession = {
     userId: 0,
     emailId: '',
@@ -128,15 +156,15 @@ export class IcareVoiceComponent implements OnInit {
       "Let's start by getting to know you better.\n\n" +
       "Please select your preferred language to continue:",
       [
-        { label: '🇬 English', value: 'langs_english', icon: '🇬🇧', code: 'en' },
-        { label: '🇫 French', value: 'langs_french', icon: '🇫🇷', code: 'fr' },
-        { label: '🇩 German', value: 'langs_german', icon: '🇩🇪', code: 'de' },
-        { label: '🇮 Italian', value: 'langs_italian', icon: '🇮🇹', code: 'it' },
-        { label: '🇵 Polish', value: 'langs_polish', icon: '🇵🇱', code: 'pl' },
-        { label: '🇵 Portuguese', value: 'langs_portuguese', icon: '🇵🇹', code: 'pt' },
-        { label: '🇷 Romanian', value: 'langs_romanian', icon: '🇷🇴', code: 'ro' },
-        { label: '🇷 Russian', value: 'langs_russian', icon: '🇷🇺', code: 'ru' },
-        { label: '🇪 Spanish', value: 'langs_spanish', icon: '🇪🇸', code: 'es' }
+        { label: 'English', value: 'langs_english', icon: '🇬🇧', code: 'en' },
+        { label: 'French', value: 'langs_french', icon: '🇫🇷', code: 'fr' },
+        { label: 'German', value: 'langs_german', icon: '🇩🇪', code: 'de' },
+        { label: 'Italian', value: 'langs_italian', icon: '🇮🇹', code: 'it' },
+        { label: 'Polish', value: 'langs_polish', icon: '🇵🇱', code: 'pl' },
+        { label: 'Portuguese', value: 'langs_portuguese', icon: '🇵🇹', code: 'pt' },
+        { label: 'Romanian', value: 'langs_romanian', icon: '🇷🇴', code: 'ro' },
+        { label: 'Russian', value: 'langs_russian', icon: '🇷🇺', code: 'ru' },
+        { label: 'Spanish', value: 'langs_spanish', icon: '🇪🇸', code: 'es' }
       ]
 
     );
@@ -158,7 +186,6 @@ export class IcareVoiceComponent implements OnInit {
   }
 
   public calculateTimeSpent(): void {
-    debugger;
     const endTime = new Date(); // create Date object
     this.botSession.endTime = endTime.toISOString(); // send as ISO string
 
@@ -276,8 +303,7 @@ export class IcareVoiceComponent implements OnInit {
       const userType = this.userData.userType;
 
       if (this.queryCount <= 3 || userType === 'student' || userType === 'member') {
-        debugger;
-        this.handleHealthQuery(input);
+        this.askQuestion(input);
 
       }
       else {
@@ -312,13 +338,13 @@ export class IcareVoiceComponent implements OnInit {
   }
 
   async handleOptionClick(option: Option): Promise<void> {
-    option.label = option.label.split(' ')[1];
+    //option.label = option.label.split(' ')[1];
     this.addUserMessage(option.label);
     this.topic = option.label;
 
     if (option.value.startsWith('langs_')) {
       this.currentLang.set(option.code || 'en');
-
+      this.currentLanguage=option.label;
       const translatedText = await this.translateLang(
         `Thank you for selecting ${option.label}. You may now ask any questions.`
       );
@@ -355,8 +381,8 @@ export class IcareVoiceComponent implements OnInit {
   }
 
   getOptionLabel(option: Option): string {
-
-    return option.label.length > 2 ? option.label.slice(2).trim() : option.label;
+      return option.label;
+   // return option.label.length > 2 ? option.label.slice(2).trim() : option.label;
   }
 
   // Voice Recognition Methods
@@ -525,9 +551,22 @@ export class IcareVoiceComponent implements OnInit {
     this.addBotMessage('thinking');
     debugger;
     try {
+      let healthAdvice: any = '';
       const start = Date.now();
+      //.net API call
+      if (this.apiResponse?.data?.answers && this.apiResponse.data.answers.length > 0) {
+        if (this.apiResponse.data.answers[0].category != 'Off Topic') {
+          healthAdvice = this.apiResponse.data.answers[0].response;
+        }
+        else{
+          healthAdvice = await this.openAIService.getHealthAdviceFromAI(query);
+        }
+      }
+      else {
+        healthAdvice = await this.openAIService.getHealthAdviceFromAI(query);
+      }
       // Simulate API call
-      const healthAdvice = await this.openAIService.getHealthAdviceFromAI(query);
+
       const end = Date.now();
       const responseTime = parseFloat(((end - start) / 1000).toFixed(2));
       // Remove typing indicator
@@ -564,8 +603,37 @@ export class IcareVoiceComponent implements OnInit {
     }
   }
 
+
+  /**
+    * Get knowledge base list from API
+    */
+  private GetFileQnaAnswer(question: string): Observable<ApiResponseVM<QnAResponse>> {
+    let params = new HttpParams();
+
+    params = params.set('dbType', 'LIVE');
+    params = params.set('kbName', 'medicare');
+    params = params.set('language', this.currentLanguage.toString());
+    params = params.set('question', question);
+
+    const url = `${this.baseUrl}MedicareKnowledgeBase/file-qna/ISG`;
+    return this.http.post<ApiResponseVM<QnAResponse>>(url, null, { params });
+
+  }
+  askQuestion(question: string) {
+
+    this.GetFileQnaAnswer(question)
+      .subscribe({
+        next: (res) => {
+          this.apiResponse = res;
+          console.log('API Response:', res);
+          this.handleHealthQuery(question);
+        },
+        error: (err) => {
+          console.error('API Error:', err);
+        }
+      });
+  }
   saveQueryHistory() {
-    debugger;
     if (this.userData.email && this.messages.length >= 16) {
       const queryText = this.messages[this.messages.length - 2];
       const responseText = this.messages[this.messages.length - 1] || {};
