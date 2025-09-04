@@ -51,6 +51,7 @@ interface UserData {
 
 interface BotSession {
   userId: number;
+  emailId: string;
   startTime: string; // ISO format (e.g., "2025-07-22T10:00:00Z")
   endTime: string;
   createdAt?: string;
@@ -85,6 +86,7 @@ export class IcareVoiceComponent implements OnInit {
 
   botSession: BotSession = {
     userId: 0,
+    emailId: '',
     startTime: '',
     endTime: '',
     createdAt: '',
@@ -156,6 +158,7 @@ export class IcareVoiceComponent implements OnInit {
   }
 
   public calculateTimeSpent(): void {
+    debugger;
     const endTime = new Date(); // create Date object
     this.botSession.endTime = endTime.toISOString(); // send as ISO string
 
@@ -163,25 +166,22 @@ export class IcareVoiceComponent implements OnInit {
       (endTime.getTime() - new Date(this.botSession.startTime).getTime()) / 1000
     );
 
-    this.saveUserSession(this.botSession).subscribe({
-      next: (res) => {
-        console.log('User session saved successfully:', res);
-      },
-      error: (err) => {
-        console.error('Error saving user session:', err);
-      }
-    });
+    if (this.userData.email) {
+      this.saveUserSession(this.botSession).subscribe({
+        next: (res) => {
+          console.log('User session saved successfully:', res);
+        },
+        error: (err) => {
+          console.error('Error saving user session:', err);
+        }
+      });
+    }
   }
 
   saveUserSession(session: BotSession) {
 
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      const user = JSON.parse(storedUser);
-      session.userId = user.id;
-      this.userId = user.id;
-    }
 
+    session.emailId = this.userData.email;
     const url = `${this.baseUrl}User/SaveUserSession`;
     return this.http.post(url, session);
   }
