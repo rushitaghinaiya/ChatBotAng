@@ -125,11 +125,13 @@
   width: 100%;
   max-width: 80%;
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;   
   gap: 8px;
+  flex-direction: row; 
 }
  .lang-option{
-  width: 50% !important; 
+  flex: 1 1 calc(50% - 8px); 
+  text-align: center;
  }
 .option-button {
   width: 100%;
@@ -142,6 +144,7 @@
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
+  justify-content: center; 
   gap: 8px;
   font-size: 14px;
   font-weight: 500;

@@ -213,37 +213,69 @@ export class IcareVoiceComponent implements OnInit {
     return this.http.post(url, session);
   }
 
-  scrollToLatestMessage(): void {
-    try {
-      const container = this.scrollContainer.nativeElement;
-      const scrollHeight = container.scrollHeight;
-      const clientHeight = container.clientHeight;
+  // scrollToLatestMessage(): void {
+  //   try {
+  //     const container = this.scrollContainer.nativeElement;
+  //     const scrollHeight = container.scrollHeight;
+  //     const clientHeight = container.clientHeight;
 
-      // Scroll just enough to bring the new message into view,
-      // hiding old ones by scrolling to near-bottom
-      container.scrollTop = scrollHeight - clientHeight - 200; // 40px buffer from bottom
-    } catch (err) {
-      console.error('Scroll error', err);
-    }
+  //     // Scroll just enough to bring the new message into view,
+  //     // hiding old ones by scrolling to near-bottom
+  //     container.scrollTop = scrollHeight - clientHeight - 200; // 40px buffer from bottom
+  //   } catch (err) {
+  //     console.error('Scroll error', err);
+  //   }
+  // }
+
+  scrollToLatestMessage(): void {
+  try {
+    const container = this.scrollContainer.nativeElement;
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: 'smooth'
+    });
+  } catch (err) {
+    console.error('Scroll error', err);
   }
+}
+
 
   scrollToBottom(): void {
-    try {
-      this.scrollContainer.nativeElement.scrollTop = this.scrollContainer.nativeElement.scrollHeight;
-    } catch (err) { }
-  }
+  try {
+    this.scrollContainer.nativeElement.scrollTo({
+      top: this.scrollContainer.nativeElement.scrollHeight,
+      behavior: 'smooth'
+    });
+  } catch (err) {}
+}
+
+  // addUserMessage(text: string): void {
+  //   const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  //   this.messages.push({
+  //     type: 'user',
+  //     text,
+  //     timestamp,
+  //     senderName: this.userData.name,
+  //   });
+  //   this.scrollToBottom();
+  // }
 
   addUserMessage(text: string): void {
-    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (this.userInput.trim()) {
+     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     this.messages.push({
       type: 'user',
       text,
       timestamp,
-      senderName: this.userData.name,
+      senderName: this.userData.name
     });
-    this.scrollToBottom();
-  }
 
+    this.userInput = '';
+
+    // Wait for DOM update, then scroll smoothly
+    setTimeout(() => this.scrollToBottom(), 100);
+  }
+}
   async handleUserInput(input: string): Promise<void> {
     this.addUserMessage(input.trim());
 
