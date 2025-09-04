@@ -111,7 +111,7 @@ export class IcareVoiceComponent implements OnInit {
   translations: any = {};
   chatJson: any[] = [];;
   currentLang = signal<string>('en');// default, update dynamically later
-  currentLanguage='English';
+  currentLanguage = 'English';
   botSession: BotSession = {
     userId: 0,
     emailId: '',
@@ -281,7 +281,7 @@ export class IcareVoiceComponent implements OnInit {
         this.translationService.translateText(input, 'en')
       );
       this.userData.email = email;
-      this.awaitingInput = null;
+      this.awaitingInput = 'emailverify';
       // ✅ If valid email, you can call your API here
       this.login(input).subscribe((res) => {
         if (res.success) {
@@ -291,18 +291,47 @@ export class IcareVoiceComponent implements OnInit {
           } else {
             this.userData.userType = 'student';
           }
-          this.addBotMessage("✅ Verified successfully! Your courses have been saved.");
+          //this.addBotMessage("✅ Verified successfully! Your courses have been saved.");
+
+          this.addBotMessage(`Please enter an otp that sent on your given email address.`);
         } else {
-          this.addBotMessage("register / purchase course");
+          this.addBotMessage(
+            `To view course content, please <a href="https://www.icare.life/" target="_blank">log in or purchase the course</a>.`
+          );
+
         }
       });
     }
+    else if (this.awaitingInput === 'emailverify')  //Add new if for email
+    {
+      // Email validation
 
+      if (input == '123456') {
+        const translatedText = await this.translateLang(
+          `✅ Verified successfully! Your courses have been saved. You can ask anythings related to your cources and general healthcare`
+        );
+        this.addBotMessage(translatedText);
+      }
+      else {
+        const translatedText = await this.translateLang(
+          `please enter a valid otp`
+        );
+        this.addBotMessage(translatedText);
+        this.awaitingInput = 'emailverify';
+        return;
+      }
+
+
+
+
+      this.awaitingInput = null;
+
+    }
     else if (this.currentFlow === 'health') {
       this.queryCount += 1;
       const userType = this.userData.userType;
 
-      if (this.queryCount <= 3 || userType === 'student' || userType === 'member') {
+      if (this.queryCount <= environment.freeQuery || userType === 'student' || userType === 'member') {
         this.askQuestion(input);
 
       }
@@ -344,7 +373,7 @@ export class IcareVoiceComponent implements OnInit {
 
     if (option.value.startsWith('langs_')) {
       this.currentLang.set(option.code || 'en');
-      this.currentLanguage=option.label;
+      this.currentLanguage = option.label;
       const translatedText = await this.translateLang(
         `Thank you for selecting ${option.label}. You may now ask any questions.`
       );
@@ -381,8 +410,8 @@ export class IcareVoiceComponent implements OnInit {
   }
 
   getOptionLabel(option: Option): string {
-      return option.label;
-   // return option.label.length > 2 ? option.label.slice(2).trim() : option.label;
+    return option.label;
+    // return option.label.length > 2 ? option.label.slice(2).trim() : option.label;
   }
 
   // Voice Recognition Methods
@@ -548,7 +577,6 @@ export class IcareVoiceComponent implements OnInit {
   // Override handleHealthQuery to speak the response
   async handleHealthQuery(query: string): Promise<void> {
     // Show typing indicator
-    this.addBotMessage('thinking');
     debugger;
     try {
       let healthAdvice: any = '';
@@ -558,7 +586,7 @@ export class IcareVoiceComponent implements OnInit {
         if (this.apiResponse.data.answers[0].category != 'Off Topic') {
           healthAdvice = this.apiResponse.data.answers[0].response;
         }
-        else{
+        else {
           healthAdvice = await this.openAIService.getHealthAdviceFromAI(query);
         }
       }
@@ -620,12 +648,13 @@ export class IcareVoiceComponent implements OnInit {
 
   }
   askQuestion(question: string) {
-
+    this.addBotMessage('thinking');
     this.GetFileQnaAnswer(question)
       .subscribe({
         next: (res) => {
           this.apiResponse = res;
           console.log('API Response:', res);
+
           this.handleHealthQuery(question);
         },
         error: (err) => {
