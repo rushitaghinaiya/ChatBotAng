@@ -347,7 +347,7 @@ export class IcareVoiceComponent implements OnInit {
           this.awaitingInput = null;
         } else {
           const translatedText = await this.translateLang(
-            `please enter a valid otp`
+            `Please enter the OTP sent on above email address.`
           );
           this.addBotMessage(translatedText);
           this.awaitingInput = 'emailverify';
@@ -408,7 +408,7 @@ export class IcareVoiceComponent implements OnInit {
       this.currentLang.set(option.code || 'en');
       this.currentLanguage = option.label;
       const translatedText = await this.translateLang(
-        `Thank you . you may now ask your questions`
+        `Thank you . You may now ask your questions`
       );
       this.addBotMessage(translatedText);
       this.previousFlow.push(this.currentFlow);
