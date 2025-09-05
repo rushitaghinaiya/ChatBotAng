@@ -661,9 +661,12 @@ onLanguageChange(option: Option | null): void {
         for (const answer of this.apiResponse.data.answers) {
           // Access filename
           const fileNameWithExt = answer.source[0].filename;
+          
           // Remove extension
           const fileNameWithoutExt = fileNameWithExt?.replace(/\.[^/.]+$/, '');
-          
+           const translatedSrc = await this.translateLang(
+              fileNameWithoutExt
+            );
           // Check access permissions
           if (!this.userData.course && !this.userData.email && answer.category != 'faq') {
             this.messages.pop();
@@ -685,13 +688,14 @@ onLanguageChange(option: Option | null): void {
             const translatedwarn = await this.translateLang(
               `To explore this topic, please <a href='https://www.icare.life/' target='_blank'>buy the course</a> and get full access.`
             );
+            
             this.messages.pop();
             this.addBotMessage(translatedwarn);
             return;
           } else if (answer.category == 'faq') {
             answersData.push({
               response: answer.response,
-              source: fileNameWithoutExt,
+              source: translatedSrc,
               category: answer.category
             });
           } else {
@@ -765,9 +769,10 @@ onLanguageChange(option: Option | null): void {
     const translatedAnswers: AnswerData[] = [];
     for (const answer of answers) {
       const translatedResponse = await this.translateLang(answer.response);
+      const translatedSourse = await this.translateLang(answer.source);
       translatedAnswers.push({
         response: translatedResponse ,
-        source: answer.source+`\n\n`,
+        source: translatedSourse+`\n\n`,
         category: answer.category
       });
     }
