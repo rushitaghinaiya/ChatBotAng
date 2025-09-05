@@ -26,6 +26,7 @@ declare global {
   }
 }
 
+// Add to your existing interfaces
 interface Message {
   type: 'bot' | 'user';
   text: string;
@@ -33,6 +34,16 @@ interface Message {
   timestamp: string;
   senderName: string;
   responseTime?: number;
+  // New properties for multiple answers
+  answers?: AnswerData[];
+  isExpanded?: boolean;
+  hasMultipleAnswers?: boolean;
+}
+
+interface AnswerData {
+  response: string;
+  source: string;
+  category: string;
 }
 
 interface Option {
@@ -94,7 +105,8 @@ export interface Source {
 export class IcareVoiceComponent implements OnInit {
 
   languageOptions: Option[] = [];
-  selectedLanguageOption?: Option;
+  selectedLanguageOption: Option | null = null;
+
 
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
 
@@ -232,26 +244,26 @@ export class IcareVoiceComponent implements OnInit {
   // }
 
   scrollToLatestMessage(): void {
-  try {
-    const container = this.scrollContainer.nativeElement;
-    container.scrollTo({
-      top: container.scrollHeight,
-      behavior: 'smooth'
-    });
-  } catch (err) {
-    console.error('Scroll error', err);
+    try {
+      const container = this.scrollContainer.nativeElement;
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: 'smooth'
+      });
+    } catch (err) {
+      console.error('Scroll error', err);
+    }
   }
-}
 
 
   scrollToBottom(): void {
-  try {
-    this.scrollContainer.nativeElement.scrollTo({
-      top: this.scrollContainer.nativeElement.scrollHeight,
-      behavior: 'smooth'
-    });
-  } catch (err) {}
-}
+    try {
+      this.scrollContainer.nativeElement.scrollTo({
+        top: this.scrollContainer.nativeElement.scrollHeight,
+        behavior: 'smooth'
+      });
+    } catch (err) { }
+  }
 
   // addUserMessage(text: string): void {
   //   const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -265,21 +277,21 @@ export class IcareVoiceComponent implements OnInit {
   // }
 
   addUserMessage(text: string): void {
-  if (this.userInput.trim()) {
-     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    this.messages.push({
-      type: 'user',
-      text,
-      timestamp,
-      senderName: this.userData.name
-    });
+    if (this.userInput.trim()) {
+      const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      this.messages.push({
+        type: 'user',
+        text,
+        timestamp,
+        senderName: this.userData.name
+      });
 
-    this.userInput = '';
+      this.userInput = '';
 
-    // Wait for DOM update, then scroll smoothly
-    setTimeout(() => this.scrollToBottom(), 100);
+      // Wait for DOM update, then scroll smoothly
+      setTimeout(() => this.scrollToBottom(), 100);
+    }
   }
-}
   async handleUserInput(input: string): Promise<void> {
     this.addUserMessage(input.trim());
 
@@ -319,50 +331,49 @@ export class IcareVoiceComponent implements OnInit {
       this.userData.email = email;
       this.awaitingInput = 'emailverify';
       // ✅ If valid email, you can call your API here
-      this.login(input).subscribe((res) => {
+      this.verifyEmail(input).subscribe((res) => {
+        debugger;
         if (res.success) {
-          this.userData.course = JSON.stringify(res.data);
-          if (!res.data || res.data.length === 0) {
-            this.userData.userType = 'member';
-          } else {
+          this.userData.course = JSON.stringify(res.data.courses);
+          if (!res.data.courses || res.data.courses.length === 0) {
+            this.userData.userType = res.data.isMembership ? 'member' : 'guest';
+          }
+          else {
             this.userData.userType = 'student';
           }
           //this.addBotMessage("✅ Verified successfully! Your courses have been saved.");
 
           this.addBotMessage(`Please enter an otp that sent on your given email address.`);
         } else {
-          this.addBotMessage(
-            `To view course content, please <a href="https://www.icare.life/" target="_blank">log in or purchase the course</a>.`
-          );
+          this.addBotMessage('Email not verified')
+          // this.addBotMessage(
+          //   `To view course content, please <a href="https://www.icare.life/" target="_blank">log in or purchase the course</a>.`
+          // );
 
         }
       });
     }
-    else if (this.awaitingInput === 'emailverify')  //Add new if for email
-    {
-      // Email validation
+    else if (this.awaitingInput === 'emailverify') {
+      this.verifyEmailOtp(input).subscribe(async (res) => {
+        if (res.success) {
+          const translatedText = await this.translateLang(
+            `✅ Verified successfully! Your courses have been saved.`
+          );
+          this.addBotMessage(translatedText);
+          this.awaitingInput = null;
+        } else {
+          const translatedText = await this.translateLang(
+            `Please enter the OTP sent on above email address.`
+          );
+          this.addBotMessage(translatedText);
+          this.awaitingInput = 'emailverify';
+          return;
+        }
+      });
 
-      if (input == '123456') {
-        const translatedText = await this.translateLang(
-          `✅ Verified successfully! Your courses have been saved. You can ask anythings related to your cources and general healthcare`
-        );
-        this.addBotMessage(translatedText);
-      }
-      else {
-        const translatedText = await this.translateLang(
-          `please enter a valid otp`
-        );
-        this.addBotMessage(translatedText);
-        this.awaitingInput = 'emailverify';
-        return;
-      }
-
-
-
-
-      this.awaitingInput = null;
 
     }
+
     else if (this.currentFlow === 'health') {
       this.queryCount += 1;
       const userType = this.userData.userType;
@@ -371,10 +382,12 @@ export class IcareVoiceComponent implements OnInit {
         this.askQuestion(input);
 
       }
+      
       else {
+        debugger;
         this.awaitingInput = 'name';
         const translatedText = await this.translateLang(
-          `🔒 You’ve reached the free limit of 3 questions.To continue, may I know your name so we can personalize your experience?`);
+          `🔒 You’ve reached the free limit of ${environment.freeQuery} questions.To continue, may I know your name so we can personalize your experience?`);
         this.addBotMessage(translatedText);
       }
 
@@ -412,7 +425,7 @@ export class IcareVoiceComponent implements OnInit {
     this.selectedLanguageOption = option;  // 👈 keep full option (with flag)
     
     const translatedText = await this.translateLang(
-      `Thank you for selecting ${option.label}. You may now ask any questions.`
+      `Thank you for selecting ${option.label}. You may now ask any questions.` +`**Disclaimer:**: This information is for knowledge purposes only and not a substitute for professional advice.`
     );
     this.addBotMessage(translatedText);
     this.previousFlow.push(this.currentFlow);
@@ -420,8 +433,8 @@ export class IcareVoiceComponent implements OnInit {
     return;
   }
 }
-onLanguageChange(option: Option | string): void {
-  if (!option || typeof option === 'string') return;
+onLanguageChange(option: Option | null): void {
+  if (!option) return;
 
   this.currentLang.set(option.code || 'en');
   this.currentLanguage = option.label;
@@ -429,6 +442,7 @@ onLanguageChange(option: Option | string): void {
 
   this.addBotMessage(`✅ Language changed to ${option.label}.`);
 }
+
 
 
 
@@ -629,63 +643,153 @@ onLanguageChange(option: Option | string): void {
     }
   }
 
-  // Override handleHealthQuery to speak the response
-  async handleHealthQuery(query: string): Promise<void> {
-    // Show typing indicator
-    debugger;
-    try {
-      let healthAdvice: any = '';
-      const start = Date.now();
-      //.net API call
-      if (this.apiResponse?.data?.answers && this.apiResponse.data.answers.length > 0) {
-        if (this.apiResponse.data.answers[0].category != 'Off Topic') {
-          healthAdvice = this.apiResponse.data.answers[0].response;
-        }
-        else {
-          healthAdvice = await this.openAIService.getHealthAdviceFromAI(query);
-        }
-      }
-      else {
-        healthAdvice = await this.openAIService.getHealthAdviceFromAI(query);
-      }
-      // Simulate API call
-
-      const end = Date.now();
-      const responseTime = parseFloat(((end - start) / 1000).toFixed(2));
-      // Remove typing indicator
-      this.messages.pop();
-      console.log(responseTime);
-      const translatedhealthAdvice = await this.translateLang(
-        healthAdvice);
-      const translatedTex = await this.translateLang(
-        `⚠️ **Important Disclaimer:** This information is for educational purposes only and should not replace professional medical advice. ` +
-        `Always consult with qualified healthcare professionals for personalized medical guidance.`);
-      const response = `${translatedhealthAdvice}\n\n` +
-        translatedTex;
-
-      this.addBotMessage(
-        response,
-        null, responseTime
-      );
-
-      // Speak the health advice
-      if (this.voiceEnabled && this.browserSupportsVoice) {
-        this.speak(healthAdvice + ". Important: This information is for educational purposes only. Always consult with qualified healthcare professionals for personalized medical guidance.");
-      }
-    } catch (error) {
-      this.messages.pop();
-      this.addBotMessage(
-        `I apologize, but I'm having trouble processing your health question right now. ` +
-        `Please try again or consult with a healthcare professional directly.`,
-        [
-          { label: '🔄 Try Again', value: 'health' },
-          { label: '⬅️ Back to Previous Menu', value: 'back' },
-          { label: '🏠 Back to Main Menu', value: 'mainMenu' }
-        ]
-      );
+ // Add method to toggle answer expansion
+  toggleAnswerExpansion(messageIndex: number): void {
+    if (this.messages[messageIndex]) {
+      this.messages[messageIndex].isExpanded = !this.messages[messageIndex].isExpanded;
     }
   }
 
+  // Modified handleHealthQuery method
+  async handleHealthQuery(query: string): Promise<void> {
+    try {
+      debugger;
+      const start = Date.now();
+      const answersData: AnswerData[] = [];
+      
+      if (this.apiResponse?.data?.answers && this.apiResponse.data.answers.length > 0) {
+        for (const answer of this.apiResponse.data.answers) {
+          // Access filename
+          const fileNameWithExt = answer.source[0].filename;
+          // Remove extension
+          const fileNameWithoutExt = fileNameWithExt?.replace(/\.[^/.]+$/, '');
+          
+          // Check access permissions
+          if (!this.userData.course && !this.userData.email && answer.category != 'faq') {
+            this.messages.pop();
+            this.awaitingInput = 'name';
+            const translatedText = await this.translateLang(
+              `This question is part of a course. Log in or purchase to unlock full access and explanations \n\nEnter your Name: `
+            );
+            this.addBotMessage(translatedText);
+            return;
+          }
+
+          if ((this.userData.course.includes(answer.category) && this.userData.email) || this.userData.userType == 'member') {
+            answersData.push({
+              response: answer.response,
+              source: fileNameWithoutExt,
+              category: answer.category
+            });
+          } else if ((!this.userData.course.includes(answer.category)) && this.userData.userType == 'student') {
+            const translatedwarn = await this.translateLang(
+              `To explore this topic, please <a href='https://www.icare.life/' target='_blank'>buy the course</a> and get full access.`
+            );
+            this.messages.pop();
+            this.addBotMessage(translatedwarn);
+            return;
+          } else if (answer.category == 'faq') {
+            answersData.push({
+              response: answer.response,
+              source: fileNameWithoutExt,
+              category: answer.category
+            });
+          } else {
+            const translatedwarn = await this.translateLang(
+              `This question is part of a course. Log in or purchase to unlock full access and explanations. (Link)`
+            );
+            this.messages.pop();
+            this.addBotMessage(translatedwarn);
+            return;
+          }
+        }
+
+        // Handle off-topic responses
+        if (this.apiResponse.data.answers[0].category == 'Off Topic') {
+          const aiResponse = await this.openAIService.getHealthAdviceFromAI(query);
+          answersData.splice(0, answersData.length); // Clear existing answers
+          answersData.push({
+            response: aiResponse,
+            source: 'OpenAI',
+            category: 'AI Generated'
+          });
+        }
+      } else {
+        // No answers from knowledge base, use AI
+        const aiResponse = await this.openAIService.getHealthAdviceFromAI(query);
+        answersData.push({
+          response: aiResponse,
+          source: 'OpenAI',
+          category: 'AI Generated'
+        });
+      }
+
+      const end = Date.now();
+      const responseTime = parseFloat(((end - start) / 1000).toFixed(2));
+      
+      // Remove typing indicator
+      this.messages.pop();
+
+      // Translate the first answer for display
+      const firstAnswerText = answersData.length > 0 
+        ? `${answersData[0].response}\n\nRef: ${answersData[0].source}`
+        : 'No answer available';
+      
+      const translatedFirstAnswer = await this.translateLang(firstAnswerText);
+
+      // Create message with multiple answers support
+      this.addBotMessageWithAnswers(
+        translatedFirstAnswer,
+        answersData,
+        responseTime
+      );
+
+      // Speak only the first answer
+      if (this.voiceEnabled && this.browserSupportsVoice) {
+        this.speak(answersData[0]?.response || 'No answer available');
+      }
+    } catch (error) {
+      this.messages.pop();
+      const translatedTxt = await this.translateLang(
+        `I apologize, but I'm having trouble processing your health question right now. Please try again or consult with a healthcare professional directly.`
+      );
+      this.addBotMessage(translatedTxt);
+    }
+  }
+
+  // New method to add bot message with answers support
+  async addBotMessageWithAnswers(text: string, answers: AnswerData[], resTime: number | null = null): Promise<void> {
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    // Translate all answers if there are multiple
+    const translatedAnswers: AnswerData[] = [];
+    for (const answer of answers) {
+      const translatedResponse = await this.translateLang(answer.response);
+      translatedAnswers.push({
+        response: translatedResponse ,
+        source: answer.source+`\n\n`,
+        category: answer.category
+      });
+    }
+
+    this.messages.push({
+      type: 'bot',
+      text,
+      timestamp,
+      senderName: this.userData.name,
+      responseTime: resTime == null ? 0 : resTime,
+      answers: translatedAnswers,
+      isExpanded: false,
+      hasMultipleAnswers: answers.length > 1
+    });
+
+    this.saveQueryHistory();
+    
+    // Delay to allow DOM update
+    setTimeout(() => {
+      this.scrollToLatestMessage();
+    }, 0);
+  }
 
   /**
     * Get knowledge base list from API
@@ -709,7 +813,7 @@ onLanguageChange(option: Option | string): void {
         next: (res) => {
           this.apiResponse = res;
           console.log('API Response:', res);
-
+          debugger;
           this.handleHealthQuery(question);
         },
         error: (err) => {
@@ -755,8 +859,22 @@ onLanguageChange(option: Option | string): void {
       });
     }
   }
+  verifyEmail(email: string): Observable<any> {
+    const formData = new FormData();
+    formData.append('Email', email);
+    formData.append('Name', this.userData.name);
 
 
+    return this.http.post<any>(`${this.baseUrl}UserSignUp/VerifyEmail`, formData);
+  }
+  verifyEmailOtp(otp: string): Observable<any> {
+    const otpVM = {
+      emailId: this.userData.email,
+      otpNumber: otp
+    };
+
+    return this.http.post<any>(`${this.baseUrl}UserSignUp/VerifyOtp`, otpVM);
+  }
   private generateSessionId(): string {
     return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
