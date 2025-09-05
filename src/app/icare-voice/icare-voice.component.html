@@ -12,6 +12,18 @@
         <h1>iCare Life Assistant</h1>
         <p>Your Caregiving Journey Starts Here</p>
       </div>
+      <!-- 🆕 Selected Language Display -->
+     <!-- 🆕 Show selected language -->
+  <div class="selected-language" *ngIf="languageOptions?.length > 0">
+  <select
+    [ngModel]="selectedLanguageOption || ''"
+    (ngModelChange)="onLanguageChange($event)">
+    <option *ngFor="let lang of languageOptions" [ngValue]="lang">
+      {{ lang.icon }} {{ lang.label }}
+    </option>
+  </select>
+</div>
+
       <div class="voice-controls" *ngIf="browserSupportsVoice">
         <button class="voice-toggle" 
                 (click)="toggleVoice()" 

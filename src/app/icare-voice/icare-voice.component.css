@@ -445,6 +445,23 @@
   background: rgb(76, 45, 91);
 }
 
+.selected-language select {
+  background: transparent;
+  border: 1px solid #fff;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #fff;
+  cursor: pointer;
+}
+
+/* Make dropdown options readable */
+.selected-language option {
+  color: #000;
+}
+
+
 /* Responsive design */
 @media (max-width: 640px) {
   .chatbot-container {

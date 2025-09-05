@@ -92,6 +92,10 @@ export interface Source {
   styleUrls: ['./icare-voice.component.css']
 })
 export class IcareVoiceComponent implements OnInit {
+
+  languageOptions: Option[] = [];
+  selectedLanguageOption?: Option;
+
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
 
   userId: number = 0;
@@ -399,23 +403,35 @@ export class IcareVoiceComponent implements OnInit {
   }
 
   async handleOptionClick(option: Option): Promise<void> {
-    //option.label = option.label.split(' ')[1];
-    this.addUserMessage(option.label);
-    this.topic = option.label;
+  this.addUserMessage(option.label);
+  this.topic = option.label;
 
-    if (option.value.startsWith('langs_')) {
-      this.currentLang.set(option.code || 'en');
-      this.currentLanguage = option.label;
-      const translatedText = await this.translateLang(
-        `Thank you for selecting ${option.label}. You may now ask any questions.`
-      );
-      this.addBotMessage(translatedText);
-      this.previousFlow.push(this.currentFlow);
-      this.currentFlow = 'health';
-      return;
-      //this.showGuestMenu();
-    }
+  if (option.value.startsWith('langs_')) {
+    this.currentLang.set(option.code || 'en');
+    this.currentLanguage = option.label;
+    this.selectedLanguageOption = option;  // 👈 keep full option (with flag)
+    
+    const translatedText = await this.translateLang(
+      `Thank you for selecting ${option.label}. You may now ask any questions.`
+    );
+    this.addBotMessage(translatedText);
+    this.previousFlow.push(this.currentFlow);
+    this.currentFlow = 'health';
+    return;
   }
+}
+onLanguageChange(option: Option | string): void {
+  if (!option || typeof option === 'string') return;
+
+  this.currentLang.set(option.code || 'en');
+  this.currentLanguage = option.label;
+  this.selectedLanguageOption = option;
+
+  this.addBotMessage(`✅ Language changed to ${option.label}.`);
+}
+
+
+
 
   onSubmit(): void {
     if (this.userInput.trim()) {
@@ -591,8 +607,15 @@ export class IcareVoiceComponent implements OnInit {
       timestamp,
       senderName: this.userData.name,
       responseTime: resTime == null ? 0 : resTime
-    });
-
+        });
+    // 🔽 capture language options dynamically
+    if (options && options.length > 0) {
+      const langs = options.filter(opt => opt.value.startsWith('langs_'));
+      if (langs.length > 0 && this.languageOptions.length === 0) {
+  this.languageOptions = langs;
+  this.selectedLanguageOption = langs[0]; // 👈 Default
+}
+    }
     if (this.messages[this.messages.length - 1].text != 'thinking') {
       this.saveQueryHistory();
     }
