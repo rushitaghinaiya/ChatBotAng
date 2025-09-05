@@ -772,6 +772,8 @@ export class IcareVoiceComponent implements OnInit {
   verifyEmail(email: string): Observable<any> {
     const formData = new FormData();
     formData.append('Email', email);
+    formData.append('Name', this.userData.name);
+
 
     return this.http.post<any>(`${this.baseUrl}UserSignUp/VerifyEmail`, formData);
   }
