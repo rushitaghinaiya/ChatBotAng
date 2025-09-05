@@ -228,26 +228,26 @@ export class IcareVoiceComponent implements OnInit {
   // }
 
   scrollToLatestMessage(): void {
-  try {
-    const container = this.scrollContainer.nativeElement;
-    container.scrollTo({
-      top: container.scrollHeight,
-      behavior: 'smooth'
-    });
-  } catch (err) {
-    console.error('Scroll error', err);
+    try {
+      const container = this.scrollContainer.nativeElement;
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: 'smooth'
+      });
+    } catch (err) {
+      console.error('Scroll error', err);
+    }
   }
-}
 
 
   scrollToBottom(): void {
-  try {
-    this.scrollContainer.nativeElement.scrollTo({
-      top: this.scrollContainer.nativeElement.scrollHeight,
-      behavior: 'smooth'
-    });
-  } catch (err) {}
-}
+    try {
+      this.scrollContainer.nativeElement.scrollTo({
+        top: this.scrollContainer.nativeElement.scrollHeight,
+        behavior: 'smooth'
+      });
+    } catch (err) { }
+  }
 
   // addUserMessage(text: string): void {
   //   const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -261,21 +261,21 @@ export class IcareVoiceComponent implements OnInit {
   // }
 
   addUserMessage(text: string): void {
-  if (this.userInput.trim()) {
-     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    this.messages.push({
-      type: 'user',
-      text,
-      timestamp,
-      senderName: this.userData.name
-    });
+    if (this.userInput.trim()) {
+      const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      this.messages.push({
+        type: 'user',
+        text,
+        timestamp,
+        senderName: this.userData.name
+      });
 
-    this.userInput = '';
+      this.userInput = '';
 
-    // Wait for DOM update, then scroll smoothly
-    setTimeout(() => this.scrollToBottom(), 100);
+      // Wait for DOM update, then scroll smoothly
+      setTimeout(() => this.scrollToBottom(), 100);
+    }
   }
-}
   async handleUserInput(input: string): Promise<void> {
     this.addUserMessage(input.trim());
 
@@ -315,50 +315,49 @@ export class IcareVoiceComponent implements OnInit {
       this.userData.email = email;
       this.awaitingInput = 'emailverify';
       // ✅ If valid email, you can call your API here
-      this.login(input).subscribe((res) => {
+      this.verifyEmail(input).subscribe((res) => {
+        debugger;
         if (res.success) {
-          this.userData.course = JSON.stringify(res.data);
-          if (!res.data || res.data.length === 0) {
-            this.userData.userType = 'member';
-          } else {
+          this.userData.course = JSON.stringify(res.data.courses);
+          if (!res.data.courses || res.data.courses.length === 0) {
+            this.userData.userType = res.data.isMembership ? 'member' : 'guest';
+          }
+          else {
             this.userData.userType = 'student';
           }
           //this.addBotMessage("✅ Verified successfully! Your courses have been saved.");
 
           this.addBotMessage(`Please enter an otp that sent on your given email address.`);
         } else {
-          this.addBotMessage(
-            `To view course content, please <a href="https://www.icare.life/" target="_blank">log in or purchase the course</a>.`
-          );
+          this.addBotMessage('Email not verified')
+          // this.addBotMessage(
+          //   `To view course content, please <a href="https://www.icare.life/" target="_blank">log in or purchase the course</a>.`
+          // );
 
         }
       });
     }
-    else if (this.awaitingInput === 'emailverify')  //Add new if for email
-    {
-      // Email validation
+    else if (this.awaitingInput === 'emailverify') {
+      this.verifyEmailOtp(input).subscribe(async (res) => {
+        if (res.success) {
+          const translatedText = await this.translateLang(
+            `✅ Verified successfully! Your courses have been saved.`
+          );
+          this.addBotMessage(translatedText);
+          this.awaitingInput = null;
+        } else {
+          const translatedText = await this.translateLang(
+            `please enter a valid otp`
+          );
+          this.addBotMessage(translatedText);
+          this.awaitingInput = 'emailverify';
+          return;
+        }
+      });
 
-      if (input == '123456') {
-        const translatedText = await this.translateLang(
-          `✅ Verified successfully! Your courses have been saved. You can ask anythings related to your cources and general healthcare`
-        );
-        this.addBotMessage(translatedText);
-      }
-      else {
-        const translatedText = await this.translateLang(
-          `please enter a valid otp`
-        );
-        this.addBotMessage(translatedText);
-        this.awaitingInput = 'emailverify';
-        return;
-      }
-
-
-
-
-      this.awaitingInput = null;
 
     }
+
     else if (this.currentFlow === 'health') {
       this.queryCount += 1;
       const userType = this.userData.userType;
@@ -367,10 +366,12 @@ export class IcareVoiceComponent implements OnInit {
         this.askQuestion(input);
 
       }
+      
       else {
+        debugger;
         this.awaitingInput = 'name';
         const translatedText = await this.translateLang(
-          `🔒 You’ve reached the free limit of 3 questions.To continue, may I know your name so we can personalize your experience?`);
+          `🔒 You’ve reached the free limit of ${environment.freeQuery} questions.To continue, may I know your name so we can personalize your experience?`);
         this.addBotMessage(translatedText);
       }
 
@@ -407,7 +408,7 @@ export class IcareVoiceComponent implements OnInit {
       this.currentLang.set(option.code || 'en');
       this.currentLanguage = option.label;
       const translatedText = await this.translateLang(
-        `Thank you for selecting ${option.label}. You may now ask any questions.`
+        `Thank you . you may now ask your questions`
       );
       this.addBotMessage(translatedText);
       this.previousFlow.push(this.currentFlow);
@@ -615,15 +616,59 @@ export class IcareVoiceComponent implements OnInit {
       const start = Date.now();
       //.net API call
       if (this.apiResponse?.data?.answers && this.apiResponse.data.answers.length > 0) {
+        for (const answer of this.apiResponse.data.answers) {
+
+          // Access filename
+          const fileNameWithExt = answer.source[0].filename;
+
+          // Remove extension
+          const fileNameWithoutExt = fileNameWithExt?.replace(/\.[^/.]+$/, '');
+          debugger;
+          if (!this.userData.course && !this.userData.email && answer.category != 'faq') {
+            this.messages.pop();
+            this.awaitingInput = 'name';
+            const translatedText = await this.translateLang(
+              `This question is part of a course. Log in or purchase to unlock full access and explanations `+`\n\n`+ `Enter your Name: `);
+            this.addBotMessage(translatedText);
+            return;
+          }
+          if ((this.userData.course.includes(answer.category) && this.userData.email) || this.userData.userType=='member') {
+            // Concatenate response + reference
+            healthAdvice += answer.response + `\n\nRef: ${fileNameWithoutExt}\n\n`;
+          }
+          else if((!this.userData.course.includes(answer.category)) && this.userData.userType=='student'){
+             const translatedwarn = await this.translateLang(
+              `To explore this topic, please <a href='https://www.icare.life/' target='_blank'>buy the course</a> and get full access.`
+            );
+            this.messages.pop();
+            this.addBotMessage(translatedwarn);
+            return;
+          }
+          else if (answer.category == 'faq') {
+            healthAdvice += answer.response + `\n\nRef: ${fileNameWithoutExt}\n\n`;
+          }
+          else {
+            const translatedwarn = await this.translateLang(
+              `This question is part of a course. Log in or purchase to unlock full access and explanations. (Link)`
+            );
+            this.messages.pop();
+            this.addBotMessage(translatedwarn);
+            return;
+          }
+        }
+
+        // Handle category check after processing all answers
         if (this.apiResponse.data.answers[0].category != 'Off Topic') {
           healthAdvice = this.apiResponse.data.answers[0].response;
-        }
-        else {
+        } else {
           healthAdvice = await this.openAIService.getHealthAdviceFromAI(query);
+          healthAdvice = healthAdvice + `\n\n` + `Ref:OpenAI`;
         }
       }
+
       else {
         healthAdvice = await this.openAIService.getHealthAdviceFromAI(query);
+        healthAdvice = healthAdvice + `\n\n` + `Ref:OpenAI`;
       }
       // Simulate API call
 
@@ -634,31 +679,24 @@ export class IcareVoiceComponent implements OnInit {
       console.log(responseTime);
       const translatedhealthAdvice = await this.translateLang(
         healthAdvice);
-      const translatedTex = await this.translateLang(
-        `⚠️ **Important Disclaimer:** This information is for educational purposes only and should not replace professional medical advice. ` +
-        `Always consult with qualified healthcare professionals for personalized medical guidance.`);
-      const response = `${translatedhealthAdvice}\n\n` +
-        translatedTex;
 
+      
       this.addBotMessage(
-        response,
+        translatedhealthAdvice,
         null, responseTime
       );
 
       // Speak the health advice
       if (this.voiceEnabled && this.browserSupportsVoice) {
-        this.speak(healthAdvice + ". Important: This information is for educational purposes only. Always consult with qualified healthcare professionals for personalized medical guidance.");
+        this.speak(healthAdvice);
       }
     } catch (error) {
       this.messages.pop();
-      this.addBotMessage(
+      const translatedTxt = await this.translateLang(
         `I apologize, but I'm having trouble processing your health question right now. ` +
-        `Please try again or consult with a healthcare professional directly.`,
-        [
-          { label: '🔄 Try Again', value: 'health' },
-          { label: '⬅️ Back to Previous Menu', value: 'back' },
-          { label: '🏠 Back to Main Menu', value: 'mainMenu' }
-        ]
+        `Please try again or consult with a healthcare professional directly.`,);
+      this.addBotMessage(
+        translatedTxt
       );
     }
   }
@@ -686,7 +724,7 @@ export class IcareVoiceComponent implements OnInit {
         next: (res) => {
           this.apiResponse = res;
           console.log('API Response:', res);
-
+          debugger;
           this.handleHealthQuery(question);
         },
         error: (err) => {
@@ -732,8 +770,20 @@ export class IcareVoiceComponent implements OnInit {
       });
     }
   }
+  verifyEmail(email: string): Observable<any> {
+    const formData = new FormData();
+    formData.append('Email', email);
 
+    return this.http.post<any>(`${this.baseUrl}UserSignUp/VerifyEmail`, formData);
+  }
+  verifyEmailOtp(otp: string): Observable<any> {
+    const otpVM = {
+      emailId: this.userData.email,
+      otpNumber: otp
+    };
 
+    return this.http.post<any>(`${this.baseUrl}UserSignUp/VerifyOtp`, otpVM);
+  }
   private generateSessionId(): string {
     return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
