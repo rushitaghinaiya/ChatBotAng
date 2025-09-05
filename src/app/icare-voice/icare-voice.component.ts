@@ -425,7 +425,7 @@ export class IcareVoiceComponent implements OnInit {
     this.selectedLanguageOption = option;  // 👈 keep full option (with flag)
     
     const translatedText = await this.translateLang(
-      `Thank you for selecting ${option.label}. You may now ask any questions.` +`**Disclaimer:**: This information is for knowledge purposes only and not a substitute for professional advice.`
+      `Thank you for selecting ${option.label}. You may now ask any questions.\n\n` +`**Disclaimer:**: This information is for knowledge purposes only and not a substitute for professional advice.`
     );
     this.addBotMessage(translatedText);
     this.previousFlow.push(this.currentFlow);
