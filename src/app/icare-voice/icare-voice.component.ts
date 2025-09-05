@@ -26,6 +26,7 @@ declare global {
   }
 }
 
+// Add to your existing interfaces
 interface Message {
   type: 'bot' | 'user';
   text: string;
@@ -33,6 +34,16 @@ interface Message {
   timestamp: string;
   senderName: string;
   responseTime?: number;
+  // New properties for multiple answers
+  answers?: AnswerData[];
+  isExpanded?: boolean;
+  hasMultipleAnswers?: boolean;
+}
+
+interface AnswerData {
+  response: string;
+  source: string;
+  category: string;
 }
 
 interface Option {
@@ -607,47 +618,58 @@ export class IcareVoiceComponent implements OnInit {
     }
   }
 
-  // Override handleHealthQuery to speak the response
+ // Add method to toggle answer expansion
+  toggleAnswerExpansion(messageIndex: number): void {
+    if (this.messages[messageIndex]) {
+      this.messages[messageIndex].isExpanded = !this.messages[messageIndex].isExpanded;
+    }
+  }
+
+  // Modified handleHealthQuery method
   async handleHealthQuery(query: string): Promise<void> {
-    // Show typing indicator
-    debugger;
     try {
-      let healthAdvice: any = '';
+      debugger;
       const start = Date.now();
-      //.net API call
+      const answersData: AnswerData[] = [];
+      
       if (this.apiResponse?.data?.answers && this.apiResponse.data.answers.length > 0) {
         for (const answer of this.apiResponse.data.answers) {
-
           // Access filename
           const fileNameWithExt = answer.source[0].filename;
-
           // Remove extension
           const fileNameWithoutExt = fileNameWithExt?.replace(/\.[^/.]+$/, '');
-          debugger;
+          
+          // Check access permissions
           if (!this.userData.course && !this.userData.email && answer.category != 'faq') {
             this.messages.pop();
             this.awaitingInput = 'name';
             const translatedText = await this.translateLang(
-              `This question is part of a course. Log in or purchase to unlock full access and explanations `+`\n\n`+ `Enter your Name: `);
+              `This question is part of a course. Log in or purchase to unlock full access and explanations \n\nEnter your Name: `
+            );
             this.addBotMessage(translatedText);
             return;
           }
-          if ((this.userData.course.includes(answer.category) && this.userData.email) || this.userData.userType=='member') {
-            // Concatenate response + reference
-            healthAdvice += answer.response + `\n\nRef: ${fileNameWithoutExt}\n\n`;
-          }
-          else if((!this.userData.course.includes(answer.category)) && this.userData.userType=='student'){
-             const translatedwarn = await this.translateLang(
+
+          if ((this.userData.course.includes(answer.category) && this.userData.email) || this.userData.userType == 'member') {
+            answersData.push({
+              response: answer.response,
+              source: fileNameWithoutExt,
+              category: answer.category
+            });
+          } else if ((!this.userData.course.includes(answer.category)) && this.userData.userType == 'student') {
+            const translatedwarn = await this.translateLang(
               `To explore this topic, please <a href='https://www.icare.life/' target='_blank'>buy the course</a> and get full access.`
             );
             this.messages.pop();
             this.addBotMessage(translatedwarn);
             return;
-          }
-          else if (answer.category == 'faq') {
-            healthAdvice += answer.response + `\n\nRef: ${fileNameWithoutExt}\n\n`;
-          }
-          else {
+          } else if (answer.category == 'faq') {
+            answersData.push({
+              response: answer.response,
+              source: fileNameWithoutExt,
+              category: answer.category
+            });
+          } else {
             const translatedwarn = await this.translateLang(
               `This question is part of a course. Log in or purchase to unlock full access and explanations. (Link)`
             );
@@ -657,49 +679,92 @@ export class IcareVoiceComponent implements OnInit {
           }
         }
 
-        // Handle category check after processing all answers
+        // Handle off-topic responses
         if (this.apiResponse.data.answers[0].category == 'Off Topic') {
-        
-          healthAdvice = await this.openAIService.getHealthAdviceFromAI(query);
-          healthAdvice = healthAdvice + `\n\n` + `Ref:OpenAI`;
+          const aiResponse = await this.openAIService.getHealthAdviceFromAI(query);
+          answersData.splice(0, answersData.length); // Clear existing answers
+          answersData.push({
+            response: aiResponse,
+            source: 'OpenAI',
+            category: 'AI Generated'
+          });
         }
+      } else {
+        // No answers from knowledge base, use AI
+        const aiResponse = await this.openAIService.getHealthAdviceFromAI(query);
+        answersData.push({
+          response: aiResponse,
+          source: 'OpenAI',
+          category: 'AI Generated'
+        });
       }
-
-      else {
-        healthAdvice = await this.openAIService.getHealthAdviceFromAI(query);
-        healthAdvice = healthAdvice + `\n\n` + `Ref:OpenAI`;
-      }
-      // Simulate API call
 
       const end = Date.now();
       const responseTime = parseFloat(((end - start) / 1000).toFixed(2));
+      
       // Remove typing indicator
       this.messages.pop();
-      console.log(responseTime);
-      const translatedhealthAdvice = await this.translateLang(
-        healthAdvice);
 
+      // Translate the first answer for display
+      const firstAnswerText = answersData.length > 0 
+        ? `${answersData[0].response}\n\nRef: ${answersData[0].source}`
+        : 'No answer available';
       
-      this.addBotMessage(
-        translatedhealthAdvice,
-        null, responseTime
+      const translatedFirstAnswer = await this.translateLang(firstAnswerText);
+
+      // Create message with multiple answers support
+      this.addBotMessageWithAnswers(
+        translatedFirstAnswer,
+        answersData,
+        responseTime
       );
 
-      // Speak the health advice
+      // Speak only the first answer
       if (this.voiceEnabled && this.browserSupportsVoice) {
-        this.speak(healthAdvice);
+        this.speak(answersData[0]?.response || 'No answer available');
       }
     } catch (error) {
       this.messages.pop();
       const translatedTxt = await this.translateLang(
-        `I apologize, but I'm having trouble processing your health question right now. ` +
-        `Please try again or consult with a healthcare professional directly.`,);
-      this.addBotMessage(
-        translatedTxt
+        `I apologize, but I'm having trouble processing your health question right now. Please try again or consult with a healthcare professional directly.`
       );
+      this.addBotMessage(translatedTxt);
     }
   }
 
+  // New method to add bot message with answers support
+  async addBotMessageWithAnswers(text: string, answers: AnswerData[], resTime: number | null = null): Promise<void> {
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    // Translate all answers if there are multiple
+    const translatedAnswers: AnswerData[] = [];
+    for (const answer of answers) {
+      const translatedResponse = await this.translateLang(answer.response);
+      translatedAnswers.push({
+        response: translatedResponse ,
+        source: answer.source+`\n\n`,
+        category: answer.category
+      });
+    }
+
+    this.messages.push({
+      type: 'bot',
+      text,
+      timestamp,
+      senderName: this.userData.name,
+      responseTime: resTime == null ? 0 : resTime,
+      answers: translatedAnswers,
+      isExpanded: false,
+      hasMultipleAnswers: answers.length > 1
+    });
+
+    this.saveQueryHistory();
+    
+    // Delay to allow DOM update
+    setTimeout(() => {
+      this.scrollToLatestMessage();
+    }, 0);
+  }
 
   /**
     * Get knowledge base list from API
