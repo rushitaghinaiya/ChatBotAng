@@ -408,7 +408,7 @@ export class IcareVoiceComponent implements OnInit {
       this.currentLang.set(option.code || 'en');
       this.currentLanguage = option.label;
       const translatedText = await this.translateLang(
-        `Thank you . You may now ask your questions`
+        `Thank you . You may now ask your questions\n\n`+`**Disclaimer:**: This information is for knowledge purposes only and not a substitute for professional advice.`
       );
       this.addBotMessage(translatedText);
       this.previousFlow.push(this.currentFlow);
@@ -658,9 +658,8 @@ export class IcareVoiceComponent implements OnInit {
         }
 
         // Handle category check after processing all answers
-        if (this.apiResponse.data.answers[0].category != 'Off Topic') {
-          healthAdvice = this.apiResponse.data.answers[0].response;
-        } else {
+        if (this.apiResponse.data.answers[0].category == 'Off Topic') {
+        
           healthAdvice = await this.openAIService.getHealthAdviceFromAI(query);
           healthAdvice = healthAdvice + `\n\n` + `Ref:OpenAI`;
         }
