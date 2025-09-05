@@ -6,7 +6,7 @@
   max-width: 448px;
   margin: 0 auto;
   background-color: #f9fafb;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Montserrat';
 }
 
 .chatbot-header {
@@ -129,10 +129,18 @@
   gap: 8px;
   flex-direction: row; 
 }
- .lang-option{
+/* Default language buttons = half width */
+.lang-option {
   flex: 1 1 calc(50% - 8px); 
   text-align: center;
- }
+}
+
+/* Make first language option (English) full width */
+.options-container .option-button.lang-option:first-child {
+  flex: 1 1 100% !important;
+  max-width: 100%;
+  text-align: center;
+}
 .option-button {
   width: 100%;
   text-align: left;
