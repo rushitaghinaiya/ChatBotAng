@@ -60,6 +60,7 @@ interface UserData {
   userType: string;
   language: string;
   course: string;
+  isVerified: boolean;
 }
 
 interface BotSession {
@@ -71,6 +72,15 @@ interface BotSession {
   totalTimeSpent: number; // in seconds
 }
 
+export interface Language {
+  id: number;
+  languageName: string;
+  label: string;
+  value: string;
+  icon: string;
+  language_code: string;
+  isActive: boolean;
+}
 // models/qna.model.ts
 
 export interface ApiResponseVM<T> {
@@ -120,7 +130,8 @@ export class IcareVoiceComponent implements OnInit {
     email: '',
     userType: '',
     language: '',
-    course: ''
+    course: '',
+    isVerified: false
   };
   apiResponse: ApiResponseVM<QnAResponse> | null = null;
   queryCount: number = 0;
@@ -165,26 +176,7 @@ export class IcareVoiceComponent implements OnInit {
 
   ngOnInit() {
     this.botSession.startTime = new Date().toISOString();// Record start time
-    this.addBotMessage(
-      "Welcome to iCare Life!\n\n" +
-      "**Empowering YOU with skill-training for a Brighter Future!**\n\n" +
-      "I'm your virtual assistant, here to help you explore our integrated platform for caregiver training and certification. " +
-      "Let's start by getting to know you better.\n\n" +
-      "Please select your preferred language to continue:",
-      [
-        { label: 'English', value: 'langs_english', icon: '🇬🇧', code: 'en' },
-        { label: 'French', value: 'langs_french', icon: '🇫🇷', code: 'fr' },
-        { label: 'German', value: 'langs_german', icon: '🇩🇪', code: 'de' },
-        { label: 'Italian', value: 'langs_italian', icon: '🇮🇹', code: 'it' },
-        { label: 'Polish', value: 'langs_polish', icon: '🇵🇱', code: 'pl' },
-        { label: 'Portuguese', value: 'langs_portuguese', icon: '🇵🇹', code: 'pt' },
-        { label: 'Romanian', value: 'langs_romanian', icon: '🇷🇴', code: 'ro' },
-        { label: 'Russian', value: 'langs_russian', icon: '🇷🇺', code: 'ru' },
-        { label: 'Spanish', value: 'langs_spanish', icon: '🇪🇸', code: 'es' }
-      ]
-
-    );
-    this.awaitingInput = 'langs';
+    this.showLanguageSelection();
 
     // Speak welcome message if voice is enabled
     if (this.voiceEnabled && this.browserSupportsVoice) {
@@ -221,6 +213,37 @@ export class IcareVoiceComponent implements OnInit {
     }
   }
 
+  async showLanguageSelection() {
+    try {
+      const res = await firstValueFrom(this.getLanguages());
+      if (res.success && res.data.length > 0) {
+        const languages = res.data.map((lang: Language) => ({
+          label: lang.label,
+          value: lang.value,
+          icon: lang.icon,
+          code: lang.language_code
+        }));
+
+        this.addBotMessage(
+          "Welcome to iCare Life!\n\n" +
+          "**Empowering YOU with skill-training for a Brighter Future!**\n\n" +
+          "I'm your virtual assistant, here to help you explore our integrated platform for caregiver training and certification. " +
+          "Let's start by getting to know you better.\n\n" +
+          "Please select your preferred language to continue:",               
+          languages
+        );
+        this.awaitingInput = 'langs';
+      } else {
+        this.addBotMessage("No languages available at the moment.");
+      }
+    } catch (error) {
+      console.error(error);
+      this.addBotMessage("Something went wrong while loading languages.");
+    }
+  }
+  getLanguages(): Observable<{ success: boolean, data: Language[] }> {
+    return this.http.get<{ success: boolean, data: Language[] }>(`${this.baseUrl}Setting/get_languages`);
+  }
   saveUserSession(session: BotSession) {
 
 
@@ -313,9 +336,7 @@ export class IcareVoiceComponent implements OnInit {
       );
       this.addBotMessage(translatedText);
 
-    } else if (this.awaitingInput === 'email')  //Add new if for email
-    {
-      // Email validation
+    } else if (this.awaitingInput === 'email') {
       const emailRegex = /^[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[\p{L}]{2,}$/u;
 
       if (!emailRegex.test(input)) {
@@ -325,37 +346,43 @@ export class IcareVoiceComponent implements OnInit {
         this.addBotMessage(translatedText);
         return;
       }
-      const email = await firstValueFrom(
-        this.translationService.translateText(input, 'en')
-      );
-      this.userData.email = email;
+
+      this.userData.email = input;
       this.awaitingInput = 'emailverify';
-      // ✅ If valid email, you can call your API here
-      this.verifyEmail(input).subscribe((res) => {
-        debugger;
+
+      try {
+        const res = await firstValueFrom(this.verifyEmail(input)); // ✅ await instead of subscribe
+
         if (res.success) {
           this.userData.course = JSON.stringify(res.data.courses);
-          if (!res.data.courses || res.data.courses.length === 0) {
-            this.userData.userType = res.data.isMembership ? 'member' : 'guest';
-          }
-          else {
-            this.userData.userType = 'student';
-          }
-          //this.addBotMessage("✅ Verified successfully! Your courses have been saved.");
+          this.userData.userType = !res.data.courses || res.data.courses.length === 0
+            ? (res.data.isMembership ? 'member' : 'guest')
+            : 'student';
 
-          this.addBotMessage(`Please enter an otp that sent on your given email address.`);
+          const translatedText = await this.translateLang(
+            `Please enter the OTP sent to your email address.`
+          );
+          debugger;
+          const resendOtpLabel = await this.translateLang(`Resend OTP`);
+          const editEmailLabel = await this.translateLang(`Edit Email`);
+
+          this.addBotMessage(translatedText, [
+            { label: resendOtpLabel, value: 'resendotp', icon: '🔄' },
+            { label: editEmailLabel, value: 'editemail', icon: '✏️' }
+          ]);
         } else {
-          this.addBotMessage('Email not verified')
-          // this.addBotMessage(
-          //   `To view course content, please <a href="https://www.icare.life/" target="_blank">log in or purchase the course</a>.`
-          // );
-
+          this.addBotMessage(await this.translateLang(`Email not verified.`));
         }
-      });
+      } catch (err) {
+        console.error(err);
+        this.addBotMessage(await this.translateLang(`Something went wrong. Please try again.`));
+      }
     }
+
     else if (this.awaitingInput === 'emailverify') {
       this.verifyEmailOtp(input).subscribe(async (res) => {
         if (res.success) {
+          this.userData.isVerified = true;
           const translatedText = await this.translateLang(
             `✅ Verified successfully! Your courses have been saved.`
           );
@@ -363,9 +390,17 @@ export class IcareVoiceComponent implements OnInit {
           this.awaitingInput = null;
         } else {
           const translatedText = await this.translateLang(
-            `Please enter the OTP sent on above email address.`
+            `Please enter the OTP sent to your email address.`
           );
-          this.addBotMessage(translatedText);
+          const resendOtpLabel = await this.translateLang(`Resend OTP`);
+          const editEmailLabel = await this.translateLang(`Edit Email`);
+
+          this.addBotMessage(translatedText, [
+            { label: resendOtpLabel, value: 'resendotp', icon: '🔄' },
+            { label: editEmailLabel, value: 'editemail', icon: '✏️' }
+          ]);
+          // translate button labels also
+
           this.awaitingInput = 'emailverify';
           return;
         }
@@ -378,11 +413,11 @@ export class IcareVoiceComponent implements OnInit {
       this.queryCount += 1;
       const userType = this.userData.userType;
 
-      if (this.queryCount <= environment.freeQuery || userType === 'student' || userType === 'member') {
+      if (this.queryCount <= environment.freeQuery || userType === 'student' || userType === 'member' || userType === 'guest') {
         this.askQuestion(input);
 
       }
-      
+
       else {
         debugger;
         this.awaitingInput = 'name';
@@ -416,32 +451,71 @@ export class IcareVoiceComponent implements OnInit {
   }
 
   async handleOptionClick(option: Option): Promise<void> {
-  this.addUserMessage(option.label);
-  this.topic = option.label;
+    this.addUserMessage(option.label);
+    this.topic = option.label;
 
-  if (option.value.startsWith('langs_')) {
+    if (option.value.startsWith('langs_')) {
+      this.currentLang.set(option.code || 'en');
+      this.currentLanguage = option.label;
+      this.selectedLanguageOption = option;  // 👈 keep full option (with flag)
+
+      const translatedText = await this.translateLang(
+        `Thank you. You may now ask any questions.`
+      );
+      const translatedDis = await this.translateLang(`**Disclaimer:**: This information is for knowledge purposes only and not a substitute for professional advice.`)
+      this.addBotMessage(translatedText + '\n\n' + translatedDis);
+      this.previousFlow.push(this.currentFlow);
+      this.currentFlow = 'health';
+      return;
+    }
+
+    if (option.value === 'resendotp' && this.userData.isVerified == false) {
+      this.awaitingInput = 'emailverify';
+
+      try {
+        // Convert Observable → Promise
+        const res: any = await firstValueFrom(this.verifyEmail(this.userData.email));
+
+        if (res.success) {
+          this.userData.course = JSON.stringify(res.data.courses);
+          if (!res.data.courses || res.data.courses.length === 0) {
+            this.userData.userType = res.data.isMembership ? 'member' : 'guest';
+          } else {
+            this.userData.userType = 'student';
+          }
+
+        } else {
+          this.addBotMessage('Email could not be verified. Please try again.');
+        }
+
+        // ✅ Resent OTP message
+        const resentText = await this.translateLang(
+          `We have resent the OTP to your email address: ${this.userData.email}. \n Please enter your OTP below to continue.`
+        );
+        this.addBotMessage(resentText);
+        this.awaitingInput = 'emailverify';
+      } catch (error) {
+        this.addBotMessage('Something went wrong while verifying your email.');
+        console.error(error);
+      }
+    }
+    if (option.value === 'editemail' && this.userData.isVerified == false) {
+      const translatedText = await this.translateLang(
+        `You choose to edit your email. Please provide a valid email address to proceed.`
+      );
+      this.addBotMessage(translatedText);
+      this.awaitingInput === 'email'
+    }
+  }
+  onLanguageChange(option: Option | null): void {
+    if (!option) return;
+
     this.currentLang.set(option.code || 'en');
     this.currentLanguage = option.label;
-    this.selectedLanguageOption = option;  // 👈 keep full option (with flag)
-    
-    const translatedText = await this.translateLang(
-      `Thank you for selecting ${option.label}. You may now ask any questions.\n\n` +`**Disclaimer:**: This information is for knowledge purposes only and not a substitute for professional advice.`
-    );
-    this.addBotMessage(translatedText);
-    this.previousFlow.push(this.currentFlow);
-    this.currentFlow = 'health';
-    return;
+    this.selectedLanguageOption = option;
+
+    this.addBotMessage(`✅ Language changed to ${option.label}.`);
   }
-}
-onLanguageChange(option: Option | null): void {
-  if (!option) return;
-
-  this.currentLang.set(option.code || 'en');
-  this.currentLanguage = option.label;
-  this.selectedLanguageOption = option;
-
-  this.addBotMessage(`✅ Language changed to ${option.label}.`);
-}
 
 
 
@@ -468,7 +542,7 @@ onLanguageChange(option: Option | null): void {
   }
 
   getOptionIcon(option: Option): string {
-    return option.icon || option.label.slice(0, 2);
+    return option.icon || '';
   }
 
   getOptionLabel(option: Option): string {
@@ -621,14 +695,14 @@ onLanguageChange(option: Option | null): void {
       timestamp,
       senderName: this.userData.name,
       responseTime: resTime == null ? 0 : resTime
-        });
+    });
     // 🔽 capture language options dynamically
     if (options && options.length > 0) {
       const langs = options.filter(opt => opt.value.startsWith('langs_'));
       if (langs.length > 0 && this.languageOptions.length === 0) {
-  this.languageOptions = langs;
-  this.selectedLanguageOption = langs[0]; // 👈 Default
-}
+        this.languageOptions = langs;
+        this.selectedLanguageOption = langs[0]; // 👈 Default
+      }
     }
     if (this.messages[this.messages.length - 1].text != 'thinking') {
       this.saveQueryHistory();
@@ -643,7 +717,7 @@ onLanguageChange(option: Option | null): void {
     }
   }
 
- // Add method to toggle answer expansion
+  // Add method to toggle answer expansion
   toggleAnswerExpansion(messageIndex: number): void {
     if (this.messages[messageIndex]) {
       this.messages[messageIndex].isExpanded = !this.messages[messageIndex].isExpanded;
@@ -656,17 +730,17 @@ onLanguageChange(option: Option | null): void {
       debugger;
       const start = Date.now();
       const answersData: AnswerData[] = [];
-      
+
       if (this.apiResponse?.data?.answers && this.apiResponse.data.answers.length > 0) {
         for (const answer of this.apiResponse.data.answers) {
           // Access filename
           const fileNameWithExt = answer.source[0].filename;
-          
+
           // Remove extension
           const fileNameWithoutExt = fileNameWithExt?.replace(/\.[^/.]+$/, '');
-           const translatedSrc = await this.translateLang(
-              fileNameWithoutExt
-            );
+          const translatedSrc = await this.translateLang(
+            fileNameWithoutExt
+          );
           // Check access permissions
           if (!this.userData.course && !this.userData.email && answer.category != 'faq') {
             this.messages.pop();
@@ -688,11 +762,20 @@ onLanguageChange(option: Option | null): void {
             const translatedwarn = await this.translateLang(
               `To explore this topic, please <a href='https://www.icare.life/' target='_blank'>buy the course</a> and get full access.`
             );
-            
+
             this.messages.pop();
             this.addBotMessage(translatedwarn);
             return;
-          } else if (answer.category == 'faq') {
+          } else if ((!this.userData.course.includes(answer.category)) && this.userData.userType == 'guest') {
+            const translatedwarn = await this.translateLang(
+              `To explore this topic, please <a href='https://www.icare.life/' target='_blank'>buy the course</a> and get full access.`
+            );
+
+            this.messages.pop();
+            this.addBotMessage(translatedwarn);
+            return;
+          }
+          else if (answer.category == 'faq') {
             answersData.push({
               response: answer.response,
               source: translatedSrc,
@@ -700,7 +783,7 @@ onLanguageChange(option: Option | null): void {
             });
           } else {
             const translatedwarn = await this.translateLang(
-              `This question is part of a course. Log in or purchase to unlock full access and explanations. (Link)`
+              `To explore this topic, please <a href='https://www.icare.life/' target='_blank'>buy the course</a> and get full access.`
             );
             this.messages.pop();
             this.addBotMessage(translatedwarn);
@@ -730,20 +813,19 @@ onLanguageChange(option: Option | null): void {
 
       const end = Date.now();
       const responseTime = parseFloat(((end - start) / 1000).toFixed(2));
-      
+
       // Remove typing indicator
       this.messages.pop();
-
+      const ref = await this.translateLang(`Ref: ${answersData[0].source}`);
       // Translate the first answer for display
-      const firstAnswerText = answersData.length > 0 
-        ? `${answersData[0].response}\n\nRef: ${answersData[0].source}`
-        : 'No answer available';
-      
-      const translatedFirstAnswer = await this.translateLang(firstAnswerText);
+      const firstAnswerText = answersData.length > 0
+        ? await this.translateLang(`${answersData[0].response}`) + `\n\n` + `${ref}`
+        : await this.translateLang('No answer available');
+
 
       // Create message with multiple answers support
       this.addBotMessageWithAnswers(
-        translatedFirstAnswer,
+        firstAnswerText,
         answersData,
         responseTime
       );
@@ -764,15 +846,15 @@ onLanguageChange(option: Option | null): void {
   // New method to add bot message with answers support
   async addBotMessageWithAnswers(text: string, answers: AnswerData[], resTime: number | null = null): Promise<void> {
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    
+
     // Translate all answers if there are multiple
     const translatedAnswers: AnswerData[] = [];
     for (const answer of answers) {
       const translatedResponse = await this.translateLang(answer.response);
       const translatedSourse = await this.translateLang(answer.source);
       translatedAnswers.push({
-        response: translatedResponse ,
-        source: translatedSourse+`\n\n`,
+        response: translatedResponse,
+        source: translatedSourse + `\n\n`,
         category: answer.category
       });
     }
@@ -789,7 +871,7 @@ onLanguageChange(option: Option | null): void {
     });
 
     this.saveQueryHistory();
-    
+
     // Delay to allow DOM update
     setTimeout(() => {
       this.scrollToLatestMessage();
@@ -827,7 +909,7 @@ onLanguageChange(option: Option | null): void {
       });
   }
   saveQueryHistory() {
-    if (this.userData.email && this.messages.length >= 16) {
+    if (this.userData.email && this.userData.isVerified == true) {
       const queryText = this.messages[this.messages.length - 2];
       const responseText = this.messages[this.messages.length - 1] || {};
 
