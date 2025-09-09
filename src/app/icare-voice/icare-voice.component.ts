@@ -337,6 +337,7 @@ export class IcareVoiceComponent implements OnInit {
       this.addBotMessage(translatedText);
 
     } else if (this.awaitingInput === 'email') {
+      
       const emailRegex = /^[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[\p{L}]{2,}$/u;
 
       if (!emailRegex.test(input)) {
@@ -358,11 +359,10 @@ export class IcareVoiceComponent implements OnInit {
           this.userData.userType = !res.data.courses || res.data.courses.length === 0
             ? (res.data.isMembership ? 'member' : 'guest')
             : 'student';
-
+          
           const translatedText = await this.translateLang(
             `Please enter the OTP sent to your email address.`
           );
-          debugger;
           const resendOtpLabel = await this.translateLang(`Resend OTP`);
           const editEmailLabel = await this.translateLang(`Edit Email`);
 
@@ -380,7 +380,7 @@ export class IcareVoiceComponent implements OnInit {
     }
 
     else if (this.awaitingInput === 'emailverify') {
-      this.verifyEmailOtp(input).subscribe(async (res) => {
+      this.verifyEmailOtp(input.replace(/\s+/g, '')).subscribe(async (res) => {
         if (res.success) {
           this.userData.isVerified = true;
           const translatedText = await this.translateLang(
@@ -389,6 +389,7 @@ export class IcareVoiceComponent implements OnInit {
           this.addBotMessage(translatedText);
           this.awaitingInput = null;
         } else {
+          
           const translatedText = await this.translateLang(
             `Please enter the OTP sent to your email address.`
           );
@@ -419,7 +420,6 @@ export class IcareVoiceComponent implements OnInit {
       }
 
       else {
-        debugger;
         this.awaitingInput = 'name';
         const translatedText = await this.translateLang(
           `🔒 You’ve reached the free limit of ${environment.freeQuery} questions.To continue, may I know your name so we can personalize your experience?`);
@@ -471,7 +471,7 @@ export class IcareVoiceComponent implements OnInit {
 
     if (option.value === 'resendotp' && this.userData.isVerified == false) {
       this.awaitingInput = 'emailverify';
-
+      
       try {
         // Convert Observable → Promise
         const res: any = await firstValueFrom(this.verifyEmail(this.userData.email));
@@ -500,11 +500,12 @@ export class IcareVoiceComponent implements OnInit {
       }
     }
     if (option.value === 'editemail' && this.userData.isVerified == false) {
+      
       const translatedText = await this.translateLang(
         `You choose to edit your email. Please provide a valid email address to proceed.`
       );
       this.addBotMessage(translatedText);
-      this.awaitingInput === 'email'
+      this.awaitingInput = 'email'
     }
   }
   onLanguageChange(option: Option | null): void {
@@ -727,7 +728,6 @@ export class IcareVoiceComponent implements OnInit {
   // Modified handleHealthQuery method
   async handleHealthQuery(query: string): Promise<void> {
     try {
-      debugger;
       const start = Date.now();
       const answersData: AnswerData[] = [];
 
@@ -900,7 +900,6 @@ export class IcareVoiceComponent implements OnInit {
         next: (res) => {
           this.apiResponse = res;
           console.log('API Response:', res);
-          debugger;
           this.handleHealthQuery(question);
         },
         error: (err) => {
