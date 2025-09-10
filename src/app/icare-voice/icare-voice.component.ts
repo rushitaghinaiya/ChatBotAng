@@ -229,7 +229,7 @@ export class IcareVoiceComponent implements OnInit {
           "**Empowering YOU with skill-training for a Brighter Future!**\n\n" +
           "I'm your virtual assistant, here to help you explore our integrated platform for caregiver training and certification. " +
           "Let's start by getting to know you better.\n\n" +
-          "Please select your preferred language to continue:",               
+          "Please select your preferred language to continue:",
           languages
         );
         this.awaitingInput = 'langs';
@@ -337,7 +337,7 @@ export class IcareVoiceComponent implements OnInit {
       this.addBotMessage(translatedText);
 
     } else if (this.awaitingInput === 'email') {
-      
+
       const emailRegex = /^[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[\p{L}]{2,}$/u;
 
       if (!emailRegex.test(input)) {
@@ -359,7 +359,7 @@ export class IcareVoiceComponent implements OnInit {
           this.userData.userType = !res.data.courses || res.data.courses.length === 0
             ? (res.data.isMembership ? 'member' : 'guest')
             : 'student';
-          
+
           const translatedText = await this.translateLang(
             `Please enter the OTP sent to your email address.`
           );
@@ -383,13 +383,20 @@ export class IcareVoiceComponent implements OnInit {
       this.verifyEmailOtp(input.replace(/\s+/g, '')).subscribe(async (res) => {
         if (res.success) {
           this.userData.isVerified = true;
-          const translatedText = await this.translateLang(
-            `✅ Verified successfully! Your courses have been saved.`
-          );
-          this.addBotMessage(translatedText);
+          const messages: Record<string, string> = {
+            guest: `✅ Verified! You can explore general info and courses.`,
+            student: `✅ Verified! Your purchased course(s) are now accessible.`,
+            member: `✅ Verified! You have full access to all content and premium features.`
+          };
+
+          const displayText = messages[this.userData.userType] || '';
+          if (displayText) {
+            const translatedText = await this.translateLang(displayText);
+            this.addBotMessage(translatedText);
+          }
           this.awaitingInput = null;
         } else {
-          
+
           const translatedText = await this.translateLang(
             `Please enter the OTP sent to your email address.`
           );
@@ -471,7 +478,7 @@ export class IcareVoiceComponent implements OnInit {
 
     if (option.value === 'resendotp' && this.userData.isVerified == false) {
       this.awaitingInput = 'emailverify';
-      
+
       try {
         // Convert Observable → Promise
         const res: any = await firstValueFrom(this.verifyEmail(this.userData.email));
@@ -500,7 +507,7 @@ export class IcareVoiceComponent implements OnInit {
       }
     }
     if (option.value === 'editemail' && this.userData.isVerified == false) {
-      
+
       const translatedText = await this.translateLang(
         `You choose to edit your email. Please provide a valid email address to proceed.`
       );
@@ -640,9 +647,15 @@ export class IcareVoiceComponent implements OnInit {
     // Cancel any ongoing speech
     this.speechSynthesis.cancel();
 
+    // 🧹 Clean text: remove emojis, signs, and special characters
+    const cleanText = text
+      .replace(/[\p{Emoji_Presentation}\p{Emoji}\p{Extended_Pictographic}]/gu, '') // remove emojis
+      .replace(/[^\w\s.,!?'"-]/g, '') // remove other non-speech symbols but keep punctuation
+      .replace(/\s+/g, ' ') // collapse extra spaces
+      .trim();
     // Delay slightly to avoid "interrupted" error
     setTimeout(() => {
-      const utterance = new SpeechSynthesisUtterance(text);
+      const utterance = new SpeechSynthesisUtterance(cleanText);
       // ... all your voice config
 
       utterance.onstart = () => {
@@ -728,62 +741,22 @@ export class IcareVoiceComponent implements OnInit {
   // Modified handleHealthQuery method
   async handleHealthQuery(query: string): Promise<void> {
     try {
+      debugger;
       const start = Date.now();
       const answersData: AnswerData[] = [];
 
       if (this.apiResponse?.data?.answers && this.apiResponse.data.answers.length > 0) {
-        for (const answer of this.apiResponse.data.answers) {
-          // Access filename
-          const fileNameWithExt = answer.source[0].filename;
+        let validAnswers = this.apiResponse.data.answers;
 
-          // Remove extension
-          const fileNameWithoutExt = fileNameWithExt?.replace(/\.[^/.]+$/, '');
-          const translatedSrc = await this.translateLang(
-            fileNameWithoutExt
-          );
-          // Check access permissions
-          if (!this.userData.course && !this.userData.email && answer.category != 'faq') {
-            this.messages.pop();
-            this.awaitingInput = 'name';
-            const translatedText = await this.translateLang(
-              `This question is part of a course. Log in or purchase to unlock full access and explanations \n\nEnter your Name: `
-            );
-            this.addBotMessage(translatedText);
-            return;
+        // ✅ Case 1: If user has no course and no email → only faq answers
+        if (!this.userData.course && !this.userData.email) {
+          const filter = validAnswers.filter(a => a.category === 'faq' || a.category === 'ppt');
+          if (filter && filter.length > 0) {
+            validAnswers = filter;
           }
-
-          if ((this.userData.course.includes(answer.category) && this.userData.email) || this.userData.userType == 'member') {
-            answersData.push({
-              response: answer.response,
-              source: fileNameWithoutExt,
-              category: answer.category
-            });
-          } else if ((!this.userData.course.includes(answer.category)) && this.userData.userType == 'student') {
+          if (validAnswers && validAnswers.length > 0 && filter.length == 0) {
             const translatedwarn = await this.translateLang(
-              `To explore this topic, please <a href='https://www.icare.life/' target='_blank'>buy the course</a> and get full access.`
-            );
-
-            this.messages.pop();
-            this.addBotMessage(translatedwarn);
-            return;
-          } else if ((!this.userData.course.includes(answer.category)) && this.userData.userType == 'guest') {
-            const translatedwarn = await this.translateLang(
-              `To explore this topic, please <a href='https://www.icare.life/' target='_blank'>buy the course</a> and get full access.`
-            );
-
-            this.messages.pop();
-            this.addBotMessage(translatedwarn);
-            return;
-          }
-          else if (answer.category == 'faq') {
-            answersData.push({
-              response: answer.response,
-              source: translatedSrc,
-              category: answer.category
-            });
-          } else {
-            const translatedwarn = await this.translateLang(
-              `To explore this topic, please <a href='https://www.icare.life/' target='_blank'>buy the course</a> and get full access.`
+              `This content requires login or purchase. Please <a href='https://www.icare.life/' target='_blank'>log in</a> or buy the course to continue.`
             );
             this.messages.pop();
             this.addBotMessage(translatedwarn);
@@ -791,17 +764,68 @@ export class IcareVoiceComponent implements OnInit {
           }
         }
 
-        // Handle off-topic responses
-        if (this.apiResponse.data.answers[0].category == 'Off Topic') {
+        for (const answer of validAnswers) {
+          const fileNameWithExt = answer.source[0].filename;
+          const fileNameWithoutExt = fileNameWithExt?.replace(/\.[^/.]+$/, '');
+          const translatedSrc = await this.translateLang(fileNameWithoutExt);
+
+          // ✅ Case 1: Member → allow all categories
+          if (this.userData.userType == 'member') {
+            answersData.push({
+              response: answer.response,
+              source: fileNameWithoutExt,
+              category: answer.category
+            });
+          }
+          // ✅ Case 2: Student with purchased course → allow only purchased categories
+          else if (this.userData.userType == 'student' &&
+            this.userData.email &&
+            this.userData.course?.includes(answer.category)) {
+            answersData.push({
+              response: answer.response,
+              source: fileNameWithoutExt,
+              category: answer.category
+            });
+          }
+          // ✅ Case 3: Always allow faq and ppt
+          else if (answer.category === 'faq' || answer.category === 'ppt') {
+            answersData.push({
+              response: answer.response,
+              source: translatedSrc,
+              category: answer.category
+            });
+          }
+          // 🚫 Skip others (don’t return immediately)
+        }
+
+        // ✅ After processing all answers
+        if (answersData.length === 0) {
+          const translatedwarn = await this.translateLang(
+            `To explore this topic, please <a href='https://www.icare.life/' target='_blank'>buy the course</a> and get full access.`
+          );
+          this.messages.pop();
+          this.addBotMessage(translatedwarn);
+          return;
+        }
+
+        // ✅ Display collected valid answers
+        // for (const ans of answersData) {
+        //   this.addBotMessage(ans.response);
+        // }
+
+        // ✅ Handle Off Topic
+        if (validAnswers.some(a => a.category === 'Off Topic')) {
           const aiResponse = await this.openAIService.getHealthAdviceFromAI(query);
-          answersData.splice(0, answersData.length); // Clear existing answers
+          answersData.splice(0, answersData.length);
           answersData.push({
             response: aiResponse,
             source: 'OpenAI',
             category: 'AI Generated'
           });
         }
-      } else {
+      }
+
+      else {
         // No answers from knowledge base, use AI
         const aiResponse = await this.openAIService.getHealthAdviceFromAI(query);
         answersData.push({
@@ -816,7 +840,7 @@ export class IcareVoiceComponent implements OnInit {
 
       // Remove typing indicator
       this.messages.pop();
-      const ref = await this.translateLang(`Ref: ${answersData[0].source}`);
+      const ref = await this.translateLang(`Source: ${answersData[0].source}`);
       // Translate the first answer for display
       const firstAnswerText = answersData.length > 0
         ? await this.translateLang(`${answersData[0].response}`) + `\n\n` + `${ref}`
@@ -835,7 +859,6 @@ export class IcareVoiceComponent implements OnInit {
         this.speak(answersData[0]?.response || 'No answer available');
       }
     } catch (error) {
-      this.messages.pop();
       const translatedTxt = await this.translateLang(
         `I apologize, but I'm having trouble processing your health question right now. Please try again or consult with a healthcare professional directly.`
       );
@@ -851,10 +874,16 @@ export class IcareVoiceComponent implements OnInit {
     const translatedAnswers: AnswerData[] = [];
     for (const answer of answers) {
       const translatedResponse = await this.translateLang(answer.response);
-      const translatedSourse = await this.translateLang(answer.source);
+
+      let sourceText = answer.source;
+      if (sourceText.includes('Website_Dump_English[1]')) {
+        sourceText = 'Company Data';
+      }
+      const translatedSource = await this.translateLang(sourceText);
+
       translatedAnswers.push({
         response: translatedResponse,
-        source: translatedSourse + `\n\n`,
+        source: translatedSource + `\n\n`,
         category: answer.category
       });
     }
@@ -864,7 +893,7 @@ export class IcareVoiceComponent implements OnInit {
       text,
       timestamp,
       senderName: this.userData.name,
-      responseTime: resTime == null ? 0 : resTime,
+      responseTime: resTime ?? 0,
       answers: translatedAnswers,
       isExpanded: false,
       hasMultipleAnswers: answers.length > 1

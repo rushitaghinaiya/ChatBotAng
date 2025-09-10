@@ -80,7 +80,7 @@
           <div class="answer-item" *ngIf="message.answers && message.answers.length > 0">
             <div class="answer-content" [innerHTML]="formatMessage(message.answers[0].response)"></div>
             <div class="answer-reference">
-              <small><strong>Ref:</strong> {{ message.answers[0].source }}</small>
+              <small><strong>Source:</strong> {{ message.answers[0].source }}</small>
             </div>
           </div>
 
@@ -90,7 +90,7 @@
               <div class="answer-separator"></div>
               <div class="answer-content" [innerHTML]="formatMessage(answer.response)"></div>
               <div class="answer-reference">
-                <small><strong>Ref:</strong> {{ answer.source }}</small>
+                <small><strong>Source:</strong> {{ answer.source }}</small>
               </div>
             </div>
           </div>
