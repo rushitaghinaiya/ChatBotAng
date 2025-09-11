@@ -332,7 +332,7 @@ export class IcareVoiceComponent implements OnInit {
       this.userData.name = input;
       this.awaitingInput = 'email';
       const translatedText = await this.translateLang(
-        `Nice to meet you, ${input} 🙏 Now, please share your email address so we can verify your access and serve you better.`
+        `Nice to meet you, ${input} 🙏. Now, please share your email address so we can verify your access and serve you better.`
       );
       this.addBotMessage(translatedText);
 
@@ -791,7 +791,7 @@ export class IcareVoiceComponent implements OnInit {
           else if (answer.category === 'faq' || answer.category === 'ppt') {
             answersData.push({
               response: answer.response,
-              source: translatedSrc,
+              source: 'Company Data',
               category: answer.category
             });
           }
@@ -867,16 +867,29 @@ export class IcareVoiceComponent implements OnInit {
   }
 
   // New method to add bot message with answers support
-  async addBotMessageWithAnswers(text: string, answers: AnswerData[], resTime: number | null = null): Promise<void> {
+  async addBotMessageWithAnswers(
+    text: string,
+    answers: AnswerData[],
+    resTime: number | null = null
+  ): Promise<void> {
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    // Translate all answers if there are multiple
+    // ✅ Ensure Company Data comes first (any Website_Dump)
+    const sortedAnswers = [...answers].sort((a, b) => {
+      const isCompanySource = (src: string) => src.includes('Website_Dump');
+
+      const aIsCompany = isCompanySource(a.source) ? -1 : 0;
+      const bIsCompany = isCompanySource(b.source) ? -1 : 0;
+
+      return bIsCompany - aIsCompany;
+    });
+
     const translatedAnswers: AnswerData[] = [];
-    for (const answer of answers) {
+    for (const answer of sortedAnswers) {
       const translatedResponse = await this.translateLang(answer.response);
 
       let sourceText = answer.source;
-      if (sourceText.includes('Website_Dump_English[1]')) {
+      if (sourceText.includes('Website_Dump')) {
         sourceText = 'Company Data';
       }
       const translatedSource = await this.translateLang(sourceText);
@@ -901,11 +914,12 @@ export class IcareVoiceComponent implements OnInit {
 
     this.saveQueryHistory();
 
-    // Delay to allow DOM update
     setTimeout(() => {
       this.scrollToLatestMessage();
     }, 0);
   }
+
+
 
   /**
     * Get knowledge base list from API
