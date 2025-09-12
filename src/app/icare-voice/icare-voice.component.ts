@@ -177,7 +177,7 @@ export class IcareVoiceComponent implements OnInit {
   ngOnInit() {
     this.botSession.startTime = new Date().toISOString();// Record start time
     this.showLanguageSelection();
-
+    localStorage.removeItem('Token');
     // Speak welcome message if voice is enabled
     if (this.voiceEnabled && this.browserSupportsVoice) {
       // this.speak("Welcome to iCare Life! I'm your virtual assistant. Let's start by getting to know you better. What's your name?");
@@ -382,6 +382,9 @@ export class IcareVoiceComponent implements OnInit {
     else if (this.awaitingInput === 'emailverify') {
       this.verifyEmailOtp(input.replace(/\s+/g, '')).subscribe(async (res) => {
         if (res.success) {
+          if (res.data) {
+            localStorage.setItem('Token', res.data.token);
+          }
           this.userData.isVerified = true;
           const messages: Record<string, string> = {
             guest: `✅ Verified! You can explore general info and courses.`,
@@ -741,7 +744,6 @@ export class IcareVoiceComponent implements OnInit {
   // Modified handleHealthQuery method
   async handleHealthQuery(query: string): Promise<void> {
     try {
-      debugger;
       const start = Date.now();
       const answersData: AnswerData[] = [];
 
@@ -926,11 +928,27 @@ export class IcareVoiceComponent implements OnInit {
     */
   private GetFileQnaAnswer(question: string): Observable<ApiResponseVM<QnAResponse>> {
     let params = new HttpParams();
-
+    debugger;
     params = params.set('dbType', 'LIVE');
     params = params.set('kbName', 'medicare');
     params = params.set('language', this.currentLanguage.toString());
     params = params.set('question', question);
+    if (this.userData.email == "") {
+      ['ppt', 'faq'].forEach(cat => {
+        params = params.append('documentCategory', cat);
+      });
+    }
+    else {
+      if (this.userData.course) {
+        const courseList = this.userData.course.split(',');
+        courseList.forEach(course => {
+          // remove wrapping quotes if any
+          const cleanCourse = course.trim().replace(/^"+|"+$/g, '');
+          params = params.append('documentCategory', cleanCourse);
+        });
+      }
+
+    }
 
     const url = `${this.baseUrl}MedicareKnowledgeBase/file-qna/ISG`;
     return this.http.post<ApiResponseVM<QnAResponse>>(url, null, { params });

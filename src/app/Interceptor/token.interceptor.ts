@@ -15,15 +15,14 @@ export const tokenInterceptor: HttpInterceptorFn = (
 ): Observable<HttpEvent<any>> => {
   const router = inject(Router);
 
-  const token = localStorage.getItem("accessToken");
-
-  const isInternalRequest = !req.url.startsWith('https://api.openai.com');
+  const token = localStorage.getItem("Token");
+  const isInternalRequest = !req.url.startsWith('https://api.openai.com') || !req.url.startsWith('https://translation.googleapis.com');
   const isPerformRequest = req.url.includes('performid');
 
   let newReq = req;
 
   // ✅ Add token only if it's an internal request and doesn't include 'performid'
-  if (token && isInternalRequest && !isPerformRequest) {
+  if (token && isInternalRequest && !isPerformRequest&& token!="undefined") {
     newReq = req.clone({
       setHeaders: {
         Authorization: `Bearer ${token}`
