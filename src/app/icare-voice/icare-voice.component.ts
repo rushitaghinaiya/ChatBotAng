@@ -160,6 +160,8 @@ export class IcareVoiceComponent implements OnInit {
   topic: string = '';
   baseUrl: string = environment.API_BASE_URL;
   userIp: string = '';
+
+  freeQuery:number=0;
   private currentSessionId: string;
 
   constructor(private http: HttpClient, private translationService: TranslationService, private languageService: LanguageService, private openAIService: OpenAIService, private cdr: ChangeDetectorRef, private ngZone: NgZone) {
@@ -178,6 +180,7 @@ export class IcareVoiceComponent implements OnInit {
     this.botSession.startTime = new Date().toISOString();// Record start time
     this.showLanguageSelection();
     localStorage.removeItem('Token');
+    this.getSystemSettings();
     // Speak welcome message if voice is enabled
     if (this.voiceEnabled && this.browserSupportsVoice) {
       // this.speak("Welcome to iCare Life! I'm your virtual assistant. Let's start by getting to know you better. What's your name?");
@@ -424,7 +427,7 @@ export class IcareVoiceComponent implements OnInit {
       this.queryCount += 1;
       const userType = this.userData.userType;
 
-      if (this.queryCount <= environment.freeQuery || userType === 'student' || userType === 'member' || userType === 'guest') {
+      if (this.queryCount <= this.freeQuery || userType === 'student' || userType === 'member' || userType === 'guest') {
         this.askQuestion(input);
 
       }
@@ -432,7 +435,7 @@ export class IcareVoiceComponent implements OnInit {
       else {
         this.awaitingInput = 'name';
         const translatedText = await this.translateLang(
-          `🔒 You’ve reached the free limit of ${environment.freeQuery} questions.To continue, may I know your name so we can personalize your experience?`);
+          `🔒 You’ve reached the free limit of ${this.freeQuery} questions.To continue, may I know your name so we can personalize your experience?`);
         this.addBotMessage(translatedText);
       }
 
@@ -928,9 +931,6 @@ export class IcareVoiceComponent implements OnInit {
     */
   private GetFileQnaAnswer(question: string): Observable<ApiResponseVM<QnAResponse>> {
     let params = new HttpParams();
-    debugger;
-    params = params.set('dbType', 'LIVE');
-    params = params.set('kbName', 'medicare');
     params = params.set('language', this.currentLanguage.toString());
     params = params.set('question', question);
     if (this.userData.email == "") {
@@ -950,7 +950,7 @@ export class IcareVoiceComponent implements OnInit {
 
     }
 
-    const url = `${this.baseUrl}MedicareKnowledgeBase/file-qna/ISG`;
+    const url = `${this.baseUrl}MedicareKnowledgeBase/file-qna`;
     return this.http.post<ApiResponseVM<QnAResponse>>(url, null, { params });
 
   }
@@ -1024,5 +1024,18 @@ export class IcareVoiceComponent implements OnInit {
   }
   private generateSessionId(): string {
     return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+    getSystemSettings() {
+    this.http.get<any>(`${this.baseUrl}Setting/get_system_limits`).subscribe({
+      next: (res) => {
+        debugger;
+        if (res.success) {
+          this.freeQuery = res.data.freeUserQueryLimit;
+        }
+      },
+      error: (err) => {
+        console.error('Failed to fetch languages:', err);
+      }
+    });
   }
 }
