@@ -14,9 +14,9 @@ export const tokenInterceptor: HttpInterceptorFn = (
   next: HttpHandlerFn
 ): Observable<HttpEvent<any>> => {
   const router = inject(Router);
-
   const token = localStorage.getItem("Token");
-  const isInternalRequest = !req.url.startsWith('https://api.openai.com') || !req.url.startsWith('https://translation.googleapis.com');
+  
+  const isInternalRequest = !req.url.startsWith('https://api.openai.com') && !req.url.startsWith('https://translation.googleapis.com');
   const isPerformRequest = req.url.includes('performid');
 
   let newReq = req;

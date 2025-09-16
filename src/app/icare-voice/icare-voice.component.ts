@@ -91,7 +91,7 @@ export interface ApiResponseVM<T> {
 
 export interface QnAResponse {
   question: string;
-  answers: Answer[];
+  answer: Answer[];
 }
 
 export interface Answer {
@@ -161,7 +161,7 @@ export class IcareVoiceComponent implements OnInit {
   baseUrl: string = environment.API_BASE_URL;
   userIp: string = '';
 
-  freeQuery:number=0;
+  freeQuery: number = 0;
   private currentSessionId: string;
 
   constructor(private http: HttpClient, private translationService: TranslationService, private languageService: LanguageService, private openAIService: OpenAIService, private cdr: ChangeDetectorRef, private ngZone: NgZone) {
@@ -749,10 +749,10 @@ export class IcareVoiceComponent implements OnInit {
     try {
       const start = Date.now();
       const answersData: AnswerData[] = [];
-
-      if (this.apiResponse?.data?.answers && this.apiResponse.data.answers.length > 0) {
-        let validAnswers = this.apiResponse.data.answers;
-
+      debugger;
+      if (this.apiResponse?.data?.answer && this.apiResponse.data.answer.length > 0 && this.apiResponse.data.answer.some(a => a.category !== 'Off Topic')) {
+        let validAnswers = this.apiResponse.data.answer;
+       
         // ✅ Case 1: If user has no course and no email → only faq answers
         if (!this.userData.course && !this.userData.email) {
           const filter = validAnswers.filter(a => a.category === 'faq' || a.category === 'ppt');
@@ -770,7 +770,8 @@ export class IcareVoiceComponent implements OnInit {
         }
 
         for (const answer of validAnswers) {
-          const fileNameWithExt = answer.source[0].filename;
+
+          const fileNameWithExt = answer.source ? answer.source[0].filename : '';
           const fileNameWithoutExt = fileNameWithExt?.replace(/\.[^/.]+$/, '');
           const translatedSrc = await this.translateLang(fileNameWithoutExt);
 
@@ -813,21 +814,6 @@ export class IcareVoiceComponent implements OnInit {
           return;
         }
 
-        // ✅ Display collected valid answers
-        // for (const ans of answersData) {
-        //   this.addBotMessage(ans.response);
-        // }
-
-        // ✅ Handle Off Topic
-        if (validAnswers.some(a => a.category === 'Off Topic')) {
-          const aiResponse = await this.openAIService.getHealthAdviceFromAI(query);
-          answersData.splice(0, answersData.length);
-          answersData.push({
-            response: aiResponse,
-            source: 'OpenAI',
-            category: 'AI Generated'
-          });
-        }
       }
 
       else {
@@ -864,6 +850,8 @@ export class IcareVoiceComponent implements OnInit {
         this.speak(answersData[0]?.response || 'No answer available');
       }
     } catch (error) {
+      this.messages.pop();
+      console.error(error);
       const translatedTxt = await this.translateLang(
         `I apologize, but I'm having trouble processing your health question right now. Please try again or consult with a healthcare professional directly.`
       );
@@ -933,13 +921,14 @@ export class IcareVoiceComponent implements OnInit {
     let params = new HttpParams();
     params = params.set('language', this.currentLanguage.toString());
     params = params.set('question', question);
-    if (this.userData.email == "") {
+
+    if (this.userData.email == "" || this.userData.userType == 'guest') {
       ['ppt', 'faq'].forEach(cat => {
         params = params.append('documentCategory', cat);
       });
     }
     else {
-      if (this.userData.course) {
+      if (this.userData.course.trim().replace(/^"+|"+$/g, '')) {
         const courseList = this.userData.course.split(',');
         courseList.forEach(course => {
           // remove wrapping quotes if any
@@ -1025,10 +1014,10 @@ export class IcareVoiceComponent implements OnInit {
   private generateSessionId(): string {
     return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
-    getSystemSettings() {
+  getSystemSettings() {
     this.http.get<any>(`${this.baseUrl}Setting/get_system_limits`).subscribe({
       next: (res) => {
-        debugger;
+
         if (res.success) {
           this.freeQuery = res.data.freeUserQueryLimit;
         }
