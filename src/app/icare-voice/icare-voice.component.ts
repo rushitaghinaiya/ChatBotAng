@@ -105,6 +105,19 @@ export interface Source {
   timestamps: string[];
 }
 
+export interface Course {
+  id: number;
+  name: string;
+  duration: number;         // Change to string if you store "3 months", "2 weeks", etc.
+  price: number;
+  videoRuntime: string;     // Or convert to number of minutes/seconds if needed
+  languageId: number;
+  courseDetails: string;
+  isActive: boolean;
+  createdAt: string;        // Use string for ISO date, can convert to Date object in component
+}
+
+
 
 @Component({
   selector: 'app-icare-voice',
@@ -136,7 +149,7 @@ export class IcareVoiceComponent implements OnInit {
   apiResponse: ApiResponseVM<QnAResponse> | null = null;
   queryCount: number = 0;
   translations: any = {};
-  chatJson: any[] = [];;
+  chatJson: any[] = [];
   currentLang = signal<string>('en');// default, update dynamically later
   currentLanguage = 'English';
   botSession: BotSession = {
@@ -147,6 +160,7 @@ export class IcareVoiceComponent implements OnInit {
     createdAt: '',
     totalTimeSpent: 0
   }
+  courses: Course[]=[];
   awaitingInput: string | null = null;
   previousFlow: string[] = [];
   isLoggedIn: boolean = false;
@@ -255,19 +269,7 @@ export class IcareVoiceComponent implements OnInit {
     return this.http.post(url, session);
   }
 
-  // scrollToLatestMessage(): void {
-  //   try {
-  //     const container = this.scrollContainer.nativeElement;
-  //     const scrollHeight = container.scrollHeight;
-  //     const clientHeight = container.clientHeight;
 
-  //     // Scroll just enough to bring the new message into view,
-  //     // hiding old ones by scrolling to near-bottom
-  //     container.scrollTop = scrollHeight - clientHeight - 200; // 40px buffer from bottom
-  //   } catch (err) {
-  //     console.error('Scroll error', err);
-  //   }
-  // }
 
   scrollToLatestMessage(): void {
     try {
@@ -290,17 +292,6 @@ export class IcareVoiceComponent implements OnInit {
       });
     } catch (err) { }
   }
-
-  // addUserMessage(text: string): void {
-  //   const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  //   this.messages.push({
-  //     type: 'user',
-  //     text,
-  //     timestamp,
-  //     senderName: this.userData.name,
-  //   });
-  //   this.scrollToBottom();
-  // }
 
   addUserMessage(text: string): void {
     if (this.userInput.trim()) {
@@ -387,6 +378,8 @@ export class IcareVoiceComponent implements OnInit {
         if (res.success) {
           if (res.data) {
             localStorage.setItem('Token', res.data.token);
+            debugger;
+            this.courses=res.data.courses;
           }
           this.userData.isVerified = true;
           const messages: Record<string, string> = {
@@ -926,6 +919,13 @@ export class IcareVoiceComponent implements OnInit {
       ['ppt', 'faq'].forEach(cat => {
         params = params.append('documentCategory', cat);
       });
+    }
+    else if(this.userData.userType == 'member'){
+        this.courses.forEach(course => {
+          // remove wrapping quotes if any
+          const cleanCourse = course.name.trim().replace(/^"+|"+$/g, '');
+          params = params.append('documentCategory', cleanCourse);
+        });
     }
     else {
       if (this.userData.course.trim().replace(/^"+|"+$/g, '')) {
