@@ -160,7 +160,7 @@ export class IcareVoiceComponent implements OnInit {
     createdAt: '',
     totalTimeSpent: 0
   }
-  courses: Course[]=[];
+  courses: Course[] = [];
   awaitingInput: string | null = null;
   previousFlow: string[] = [];
   isLoggedIn: boolean = false;
@@ -176,6 +176,8 @@ export class IcareVoiceComponent implements OnInit {
   userIp: string = '';
 
   freeQuery: number = 0;
+  characterLimitPerQuery: number = 0;
+
   private currentSessionId: string;
 
   constructor(private http: HttpClient, private translationService: TranslationService, private languageService: LanguageService, private openAIService: OpenAIService, private cdr: ChangeDetectorRef, private ngZone: NgZone) {
@@ -378,8 +380,8 @@ export class IcareVoiceComponent implements OnInit {
         if (res.success) {
           if (res.data) {
             localStorage.setItem('Token', res.data.token);
-            debugger;
-            this.courses=res.data.courses;
+            
+            this.courses = res.data.courses;
           }
           this.userData.isVerified = true;
           const messages: Record<string, string> = {
@@ -417,6 +419,7 @@ export class IcareVoiceComponent implements OnInit {
     }
 
     else if (this.currentFlow === 'health') {
+
       this.queryCount += 1;
       const userType = this.userData.userType;
 
@@ -739,13 +742,20 @@ export class IcareVoiceComponent implements OnInit {
 
   // Modified handleHealthQuery method
   async handleHealthQuery(query: string): Promise<void> {
+    debugger;
+    let charLimit = '';
+    if (query.replace(/\s/g, '').length > this.characterLimitPerQuery) {
+      const result = Math.ceil(Number(query.replace(/\s/g, '').length) / this.characterLimitPerQuery);
+      this.queryCount += (result-1);
+      charLimit = await this.translateLang(`**Your question exceeds the character limit of ${this.characterLimitPerQuery}. Therefore, it will be counted as ${result} questions.**`);
+    }
     try {
       const start = Date.now();
       const answersData: AnswerData[] = [];
-      debugger;
+      
       if (this.apiResponse?.data?.answer && this.apiResponse.data.answer.length > 0 && this.apiResponse.data.answer.some(a => a.category !== 'Off Topic')) {
         let validAnswers = this.apiResponse.data.answer;
-       
+
         // ✅ Case 1: If user has no course and no email → only faq answers
         if (!this.userData.course && !this.userData.email) {
           const filter = validAnswers.filter(a => a.category === 'faq' || a.category === 'ppt');
@@ -754,8 +764,9 @@ export class IcareVoiceComponent implements OnInit {
           }
           if (validAnswers && validAnswers.length > 0 && filter.length == 0) {
             const translatedwarn = await this.translateLang(
-              `This content requires login or purchase. Please <a href='https://www.icare.life/' target='_blank'>log in</a> or buy the course to continue.`
+              `This looks like an course–related query. To continue, could you please share your name so I can personalize your experience?`
             );
+            this.awaitingInput = 'name';
             this.messages.pop();
             this.addBotMessage(translatedwarn);
             return;
@@ -827,10 +838,10 @@ export class IcareVoiceComponent implements OnInit {
       const ref = await this.translateLang(`Source: ${answersData[0].source}`);
       // Translate the first answer for display
       const firstAnswerText = answersData.length > 0
-        ? await this.translateLang(`${answersData[0].response}`) + `\n\n` + `${ref}`
+        ? await this.translateLang(`${charLimit.length > 0 ? charLimit + '\n\n' : ''}` + `${answersData[0].response}`) + `\n\n` + `${ref}`
         : await this.translateLang('No answer available');
 
-
+      answersData[0].response= `${charLimit.length > 0 ? charLimit + '\n\n' : ''}` +answersData[0].response
       // Create message with multiple answers support
       this.addBotMessageWithAnswers(
         firstAnswerText,
@@ -859,7 +870,7 @@ export class IcareVoiceComponent implements OnInit {
     resTime: number | null = null
   ): Promise<void> {
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
+debugger;
     // ✅ Ensure Company Data comes first (any Website_Dump)
     const sortedAnswers = [...answers].sort((a, b) => {
       const isCompanySource = (src: string) => src.includes('Website_Dump');
@@ -920,12 +931,12 @@ export class IcareVoiceComponent implements OnInit {
         params = params.append('documentCategory', cat);
       });
     }
-    else if(this.userData.userType == 'member'){
-        this.courses.forEach(course => {
-          // remove wrapping quotes if any
-          const cleanCourse = course.name.trim().replace(/^"+|"+$/g, '');
-          params = params.append('documentCategory', cleanCourse);
-        });
+    else if (this.userData.userType == 'member') {
+      this.courses.forEach(course => {
+        // remove wrapping quotes if any
+        const cleanCourse = course.name.trim().replace(/^"+|"+$/g, '');
+        params = params.append('documentCategory', cleanCourse);
+      });
     }
     else {
       if (this.userData.course.trim().replace(/^"+|"+$/g, '')) {
@@ -1020,6 +1031,7 @@ export class IcareVoiceComponent implements OnInit {
 
         if (res.success) {
           this.freeQuery = res.data.freeUserQueryLimit;
+          this.characterLimitPerQuery = res.data.characterLimitPerQuery;
         }
       },
       error: (err) => {
