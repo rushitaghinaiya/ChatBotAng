@@ -380,7 +380,7 @@ export class IcareVoiceComponent implements OnInit {
         if (res.success) {
           if (res.data) {
             localStorage.setItem('Token', res.data.token);
-            
+
             this.courses = res.data.courses;
           }
           this.userData.isVerified = true;
@@ -742,17 +742,18 @@ export class IcareVoiceComponent implements OnInit {
 
   // Modified handleHealthQuery method
   async handleHealthQuery(query: string): Promise<void> {
-    debugger;
-    let charLimit = '';
-    if (query.replace(/\s/g, '').length > this.characterLimitPerQuery) {
-      const result = Math.ceil(Number(query.replace(/\s/g, '').length) / this.characterLimitPerQuery);
-      this.queryCount += (result-1);
-      charLimit = await this.translateLang(`**Your question exceeds the character limit of ${this.characterLimitPerQuery}. Therefore, it will be counted as ${result} questions.**`);
-    }
+
     try {
+      let charLimit = '';
+      if (query.replace(/\s/g, '').length > this.characterLimitPerQuery) {
+        const result = Math.ceil(Number(query.replace(/\s/g, '').length) / this.characterLimitPerQuery);
+        this.queryCount += (result - 1);
+        charLimit = await this.translateLang(`**Your question exceeds the character limit of ${this.characterLimitPerQuery}. Therefore, it will be counted as ${result} questions.**`);
+      }
+
       const start = Date.now();
       const answersData: AnswerData[] = [];
-      
+
       if (this.apiResponse?.data?.answer && this.apiResponse.data.answer.length > 0 && this.apiResponse.data.answer.some(a => a.category !== 'Off Topic')) {
         let validAnswers = this.apiResponse.data.answer;
 
@@ -841,7 +842,7 @@ export class IcareVoiceComponent implements OnInit {
         ? await this.translateLang(`${charLimit.length > 0 ? charLimit + '\n\n' : ''}` + `${answersData[0].response}`) + `\n\n` + `${ref}`
         : await this.translateLang('No answer available');
 
-      answersData[0].response= `${charLimit.length > 0 ? charLimit + '\n\n' : ''}` +answersData[0].response
+      answersData[0].response = `${charLimit.length > 0 ? charLimit + '\n\n' : ''}` + answersData[0].response
       // Create message with multiple answers support
       this.addBotMessageWithAnswers(
         firstAnswerText,
@@ -870,7 +871,6 @@ export class IcareVoiceComponent implements OnInit {
     resTime: number | null = null
   ): Promise<void> {
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-debugger;
     // ✅ Ensure Company Data comes first (any Website_Dump)
     const sortedAnswers = [...answers].sort((a, b) => {
       const isCompanySource = (src: string) => src.includes('Website_Dump');
@@ -970,6 +970,10 @@ debugger;
   }
   saveQueryHistory() {
     if (this.userData.email && this.userData.isVerified == true) {
+      debugger;
+      if (this.messages[this.messages.length - 1].text.includes('Verified!')) {
+        return;
+      }
       const queryText = this.messages[this.messages.length - 2];
       const responseText = this.messages[this.messages.length - 1] || {};
 
