@@ -7,6 +7,7 @@ import { FormsModule } from '@angular/forms';
 import { OpenAIService } from '../Services/open-ai.service';
 import { ChangeDetectorRef, NgZone } from '@angular/core';
 import { environment } from '../constants/environment';
+import { GeminiService } from '../Services/gemini-ai.service';
 // import { DeviceDetectorService } from 'ngx-device-detector';
 
 // Speech Recognition interface declarations
@@ -95,7 +96,7 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   userIp: string = '';
 
 
-  constructor(private http: HttpClient, private openAIService: OpenAIService, private cdr: ChangeDetectorRef, private ngZone: NgZone) {
+  constructor(private http: HttpClient, private openAIService: OpenAIService, private gemini :GeminiService,private cdr: ChangeDetectorRef, private ngZone: NgZone) {
 
     this.speechSynthesis = window.speechSynthesis;
     // Check browser support for speech recognition
@@ -837,7 +838,7 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
     });
 
     if (this.messages[this.messages.length - 1].text != 'thinking') {
-      this.saveQueryHistory();
+      //this.saveQueryHistory();
     }
     // Delay to allow DOM update
     setTimeout(() => {
@@ -857,7 +858,9 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
     try {
       const start = Date.now();
       // Simulate API call
-      const healthAdvice = await this.openAIService.getHealthAdviceFromAI(query);
+      //const healthAdvice = await this.openAIService.getHealthAdviceFromAI(query);
+      const healthAdvice = await this.gemini.getHealthAdviceFromGemini(query);
+      debugger;
       const end = Date.now();
       const responseTime = parseFloat(((end - start) / 1000).toFixed(2));
       // Remove typing indicator

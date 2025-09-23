@@ -17,7 +17,7 @@ export const tokenInterceptor: HttpInterceptorFn = (
 
   const token = localStorage.getItem("accessToken");
 
-  const isInternalRequest = !req.url.startsWith('https://api.openai.com');
+  const isInternalRequest = !req.url.startsWith('https://generativelanguage.googleapis.com');
   const isPerformRequest = req.url.includes('performid');
 
   let newReq = req;
