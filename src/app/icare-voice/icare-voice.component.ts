@@ -5,8 +5,10 @@ import { CommonModule } from '@angular/common';
 import { HttpClientModule } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { OpenAIService } from '../Services/open-ai.service';
+import { TranslationService } from '../Services/translation.service';
 import { ChangeDetectorRef, NgZone } from '@angular/core';
 import { environment } from '../constants/environment';
+import { Observable, firstValueFrom } from 'rxjs';
 
 // Speech Recognition interface declarations
 declare var webkitSpeechRecognition: any;
@@ -35,6 +37,7 @@ interface Option {
   label: string;
   value: string;
   icon?: string;
+  code?: string;
 }
 
 interface UserData {
@@ -94,7 +97,7 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   userIp: string = '';
 
 
-  constructor(private http: HttpClient, private openAIService: OpenAIService, private cdr: ChangeDetectorRef, private ngZone: NgZone) {
+  constructor(private http: HttpClient, private openAIService: OpenAIService, private translationService: TranslationService, private cdr: ChangeDetectorRef, private ngZone: NgZone) {
 
     this.speechSynthesis = window.speechSynthesis;
     // Check browser support for speech recognition
@@ -107,21 +110,57 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   }
 
   ngOnInit() {
-   
-    this.botSession.startTime = new Date().toISOString();// Record start time
+    this.botSession.startTime = new Date().toISOString();
+    this.showLanguageSelection();
+  }
+
+  async showLanguageSelection() {
+    try {
+      const res = await firstValueFrom(this.getLanguages());
+      if (res.success && res.data.length > 0) {
+        const languages = res.data.map((lang: any) => ({
+          label: lang.label,
+          value: lang.value,
+          icon: lang.icon,
+          code: lang.language_code
+        }));
+        this.addBotMessage(
+          "Welcome to iCare Life!\n\n" +
+          "**Empowering YOU with skill-training for a Brighter Future!**\n\n" +
+          "I'm your virtual assistant, here to help you explore our integrated platform for caregiver training and certification. " +
+          "Let's start by getting to know you better.\n\n" +
+          "Please select your preferred language to continue:",
+          languages
+        );
+        this.awaitingInput = 'langs';
+      } else {
+        this.fallbackToNamePrompt();
+      }
+    } catch (error) {
+      console.error('Failed to load languages:', error);
+      this.fallbackToNamePrompt();
+    }
+  }
+
+  private async fallbackToNamePrompt() {
+    const text = await firstValueFrom(
+      this.translationService.translateText(
+        "What's your name?",
+        this.userData.language || 'en'
+      )
+    );
     this.addBotMessage(
       "Welcome to iCare Life!\n\n" +
       "**Empowering YOU with skill-training for a Brighter Future!**\n\n" +
       "I'm your virtual assistant, here to help you explore our integrated platform for caregiver training and certification. " +
       "Let's start by getting to know you better.\n\n" +
-      "What's your name?"
+      text
     );
     this.awaitingInput = 'name';
+  }
 
-    // Speak welcome message if voice is enabled
-    if (this.voiceEnabled && this.browserSupportsVoice) {
-      // this.speak("Welcome to iCare Life! I'm your virtual assistant. Let's start by getting to know you better. What's your name?");
-    }
+  getLanguages(): Observable<{ success: boolean; data: any[] }> {
+    return this.http.get<{ success: boolean; data: any[] }>(`${this.baseUrl}Setting/get_languages`);
   }
   
   @HostListener('window:beforeunload', ['$event'])
@@ -276,6 +315,13 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   handleOptionClick(option: Option): void {
     this.addUserMessage(option.label);
     this.topic = option.label;
+
+    if (option.value.startsWith('langs_')) {
+      this.userData.language = option.code || 'en';
+      this.fallbackToNamePrompt();
+      return;
+    }
+
     if (option.value === 'student' || option.value === 'partner' || option.value === 'guest') {
       this.userData.userType = option.value;
       this.previousFlow.push(this.currentFlow);
@@ -327,9 +373,9 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
       `Thank you! I've saved your mobile information.\n\n` +
       `To provide you with the best information, please tell me - are you a:`,
       [
-        { label: '🎓 Student', value: 'student', icon: '🎓' },
-        { label: '🤝 Partner', value: 'partner', icon: '🤝' },
-        { label: '👋 Guest', value: 'guest', icon: '👋' }
+        { label: 'Student', value: 'student', icon: '🎓' },
+        { label: 'Partner', value: 'partner', icon: '🤝' },
+        { label: 'Guest', value: 'guest', icon: '👋' }
       ]
     );
   }
@@ -684,11 +730,18 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   }
 
   getOptionIcon(option: Option): string {
-    return option.icon || option.label.slice(0, 2);
+    if (option.icon) return option.icon;
+    // hardcoded labels embed the emoji at the start; use Unicode-aware slice
+    const chars = [...option.label];
+    return chars.slice(0, 1).join('');
   }
 
   getOptionLabel(option: Option): string {
-    return option.label.length > 2 ? option.label.slice(2) : option.label;
+    if (option.icon) return option.label;
+    // strip the leading emoji character from hardcoded labels
+    const chars = [...option.label];
+    const rest = chars.slice(1).join('').trimStart();
+    return rest || option.label;
   }
 
   // Voice Recognition Methods
@@ -780,9 +833,18 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
     // Cancel any ongoing speech
     this.speechSynthesis.cancel();
 
+    // Strip emoji and markdown before speaking
+    const cleanText = text
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
+      .replace(/[\u{2600}-\u{27BF}]/gu, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
     // Delay slightly to avoid "interrupted" error
     setTimeout(() => {
-      const utterance = new SpeechSynthesisUtterance(text);
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.lang = this.userData.language || 'en';
       // ... all your voice config
 
       utterance.onstart = () => {
