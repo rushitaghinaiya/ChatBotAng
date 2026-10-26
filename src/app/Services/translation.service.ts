@@ -4,10 +4,16 @@ import { environment } from '../constants/environment';
 import { Observable, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
+interface TranslationApiResponse {
+  success: boolean;
+  data?: { translatedText?: string };
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class TranslationService {
+  private readonly translateUrl = `${environment.API_BASE_URL}Translation/translate`;
   private translationCache = new Map<string, string>();
 
   constructor(private http: HttpClient) {}
@@ -21,16 +27,13 @@ export class TranslationService {
       return of(this.translationCache.get(cacheKey)!);
     }
 
-    const params = new HttpParams()
-      .set('q', text)
-      .set('target', targetLanguage)
-      .set('key', environment.googleTranslateApiKey);
+    const params = new HttpParams().set('text', text).set('target', targetLanguage);
 
-    return this.http.post<any>(environment.googleTranslateApiUrl, null, { params }).pipe(
+    return this.http.post<TranslationApiResponse>(this.translateUrl, null, { params }).pipe(
       map(response => {
-        const translatedText = response.data.translations[0].translatedText;
-        this.translationCache.set(cacheKey, translatedText);
-        return translatedText;
+        const translated = response?.data?.translatedText?.trim() || text;
+        this.translationCache.set(cacheKey, translated);
+        return translated;
       }),
       catchError(() => of(text))
     );
