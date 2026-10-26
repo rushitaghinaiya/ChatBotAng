@@ -1,18 +1,18 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { IcareChatbotComponent } from './icare-chatbot.component';
+import { ICareChatbotComponent } from './icare-chatbot.component';
 
-describe('IcareChatbotComponent', () => {
-  let component: IcareChatbotComponent;
-  let fixture: ComponentFixture<IcareChatbotComponent>;
+describe('ICareChatbotComponent', () => {
+  let component: ICareChatbotComponent;
+  let fixture: ComponentFixture<ICareChatbotComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [IcareChatbotComponent]
+      imports: [ICareChatbotComponent]
     })
     .compileComponents();
 
-    fixture = TestBed.createComponent(IcareChatbotComponent);
+    fixture = TestBed.createComponent(ICareChatbotComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });
