@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { environment } from '../constants/environment';
 import { Observable, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
@@ -13,6 +13,7 @@ export class TranslationService {
   constructor(private http: HttpClient) {}
 
   translateText(text: string, targetLanguage: string): Observable<string> {
+    if (!environment.enableTranslation) return of(text);
     if (!targetLanguage || targetLanguage === 'en') return of(text);
 
     const cacheKey = `${text}-${targetLanguage}`;
@@ -20,11 +21,10 @@ export class TranslationService {
       return of(this.translationCache.get(cacheKey)!);
     }
 
-    const params = {
-      q: text,
-      target: targetLanguage,
-      key: environment.googleTranslateApiKey
-    };
+    const params = new HttpParams()
+      .set('q', text)
+      .set('target', targetLanguage)
+      .set('key', environment.googleTranslateApiKey);
 
     return this.http.post<any>(environment.googleTranslateApiUrl, null, { params }).pipe(
       map(response => {

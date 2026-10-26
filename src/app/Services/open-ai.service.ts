@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../constants/environment';
 
@@ -7,33 +7,40 @@ import { environment } from '../constants/environment';
   providedIn: 'root'
 })
 export class OpenAIService {
-  private apiUrl = 'https://api.openai.com/v1/chat/completions';
+  private readonly healthQuestionUrl =
+    `${environment.API_BASE_URL}MedicareKnowledgeBase/file-qna/${environment.knowledgeBaseCompanyCode}`;
 
   constructor(private http: HttpClient) {}
 
-  async getHealthAdviceFromAI(query: string): Promise<string> {
-    const headers = new HttpHeaders({
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${environment.openAiKey}`
-    });
-
-    const body = {
-      model: 'gpt-3.5-turbo',
-      messages: [
-        { role: 'system', content: 'You are a helpful medical assistant providing health advice.' },
-        { role: 'user', content: query }
-      ],
-      max_tokens: 133,
-      temperature: 0.7
-    };
+  async getHealthAdviceFromAI(query: string, language = 'en'): Promise<string> {
+    const params = new HttpParams()
+      .set('question', query)
+      .set('language', language || 'en');
 
     try {
-      const response: any = await firstValueFrom(this.http.post(this.apiUrl, body, { headers }));
-      debugger;
-      return response.choices[0]?.message?.content || 'Sorry, I couldn’t generate a response.';
+      const response = await firstValueFrom(this.http.post<KnowledgeBaseResponse>(
+        this.healthQuestionUrl,
+        null,
+        { params }
+      ));
+      const answer = response?.data?.answer?.trim();
+
+      if (!response?.success || !answer) {
+        throw new Error(response?.message || 'The knowledge base returned an empty answer.');
+      }
+
+      return answer;
     } catch (error) {
-      console.error('OpenAI API error:', error);
+      console.error('Health knowledge base request failed:', error);
       return 'There was an error contacting the AI service.';
     }
   }
+}
+
+interface KnowledgeBaseResponse {
+  success: boolean;
+  message?: string;
+  data?: {
+    answer?: string;
+  };
 }
