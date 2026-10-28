@@ -84,6 +84,8 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
   awaitingInput: string | null = null;
   previousFlow: string[] = [];
   isLoggedIn: boolean = false;
+  pendingOtpUserId: number = 0;
+  otpVerified: boolean = false;
   // Voice-related properties
   muted: boolean = false;
   recognition: any;
@@ -274,6 +276,16 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
     this.currentFlow = 'userType';
     this.showUserTypeSelection();
 
+  } else if (this.awaitingInput === 'otp') {
+    const otpRegex = /^[0-9]{4,8}$/;
+    if (!otpRegex.test(input.trim())) {
+      const msg = await this.translateMessage('Please enter a valid numeric OTP.');
+      this.addBotMessage(msg);
+      return;
+    }
+    this.verifyOtp(input.trim());
+    return;  // verifyOtp is async internally, skip the saveUserInfo() call below
+
   } else if (this.awaitingInput === 'language') {
     this.userData.language = input;
     this.showCourseDetails(input);
@@ -292,32 +304,68 @@ export class IcareVoiceComponent implements OnInit, AfterViewChecked {
 }
 
   saveUserInfo(): void {
-
     if (this.userData.name && this.userData.mobile && this.isLoggedIn == false) {
       this.http.post<any>(`${this.baseUrl}UserSignUp/SignUp`, this.userData)
         .subscribe({
           next: (res) => {
             console.log('User saved:', res);
-
             if (res.success && res.data) {
-              this.isLoggedIn = true;
-              const { user, accessToken, refreshToken, tokenExpiration, tokenType } = res.data;
-
-              // ✅ Save required data to localStorage
+              const { user } = res.data;
               localStorage.setItem('user', JSON.stringify(user));
-              localStorage.setItem('accessToken', accessToken);
-              localStorage.setItem('refreshToken', refreshToken);
-              localStorage.setItem('tokenExpiration', tokenExpiration);
-              localStorage.setItem('tokenType', tokenType);
-
               this.userId = user.id;
-
-              console.log('User and tokens stored in localStorage');
+              this.pendingOtpUserId = user.id;
+              this.promptForOtp();
             }
           },
           error: (err) => console.error('Save failed:', err)
         });
     }
+  }
+
+  async promptForOtp(): Promise<void> {
+    const msg = await this.translateMessage(
+      `We've sent a verification code to your mobile number.\n\nPlease enter the 6-digit OTP to continue:`
+    );
+    this.addBotMessage(msg);
+    this.awaitingInput = 'otp';
+  }
+
+  verifyOtp(otpNumber: string): void {
+    this.http.post<any>(`${this.baseUrl}UserSignUp/VerifyMobileOtp`, {
+      UserId: this.pendingOtpUserId,
+      OtpNumber: otpNumber
+    }).subscribe({
+      next: async (res) => {
+        if (res.success && res.data) {
+          const { accessToken, refreshToken, tokenExpiration, tokenType } = res.data;
+          localStorage.setItem('accessToken', accessToken);
+          localStorage.setItem('refreshToken', refreshToken);
+          localStorage.setItem('tokenExpiration', tokenExpiration);
+          localStorage.setItem('tokenType', tokenType ?? 'Bearer');
+          this.isLoggedIn = true;
+          this.otpVerified = true;
+          this.awaitingInput = null;
+          const msg = await this.translateMessage('Mobile number verified successfully! ✅');
+          this.addBotMessage(msg);
+        } else {
+          const errorCode = res.errorCode ?? '';
+          let errText = 'Invalid OTP. Please try again.';
+          if (errorCode === 'OTP_EXPIRED') {
+            errText = 'Your OTP has expired. Please request a new one.';
+          } else if (errorCode === 'OTP_NOT_FOUND') {
+            errText = 'No OTP found. Please request a new one.';
+          }
+          const msg = await this.translateMessage(errText);
+          this.addBotMessage(msg);
+          // keep awaitingInput = 'otp' so user can retry
+        }
+      },
+      error: async (err) => {
+        console.error('OTP verification failed:', err);
+        const msg = await this.translateMessage('Verification failed. Please try again.');
+        this.addBotMessage(msg);
+      }
+    });
   }
 
   handleOptionClick(option: Option): void {

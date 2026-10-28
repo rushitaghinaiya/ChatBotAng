@@ -32,7 +32,7 @@ export class OpenAIService {
       return answer;
     } catch (error) {
       console.error('Health knowledge base request failed:', error);
-      return 'There was an error contacting the AI service.';
+      throw error;
     }
   }
 }
